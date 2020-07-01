@@ -10,3 +10,10 @@ duh, repo for Udemy K8S Mastery Hands-On course
   - dockermastery.slack.com
 
 30 Sections, have tried to provide notes for each
+
+USES SHPOD
+==========
+- kubectl apply -f https://k8smastery.com/shpod.yaml
+- kubectl attach --namespace=shpod -ti shpod
+- after finishing the course :
+  - kubectl delete -f https://k8smastery.com/shpod.yaml

@@ -1,0 +1,136 @@
+
+Sec 05. First Contact with kubectl
+==================================
+
+- kubectl is (almost) the only tool we'll need to talk to K8s
+- it is a rich CLI tool around the K8s API
+  - everything you can do w/kubectl, you can do directly with the API
+- on our machines, there is a ~/.kube/config file with :
+  - the K8s API address
+  - the path to our TLS certificates used to authenticate
+  - user, etc
+- you can also use --kubeconfig flag to pass in a different location
+- or directly --server, --user, etc
+- kubectl => "Cube Control"
+
+CMDS
+----
+- kubectl get node
+  - returns name of host machines in cluster
+  - change format of output
+    - -o wide
+    - -o yaml  {much longer list of data}
+- kubectl api-resources
+- kubectl get -h
+
+- go into SHPOD ('kubectl attach --namespace=shpod -ti shpod') and enter :
+  - kubectl get nodes -o json | jq ".items[] | {name:.metadata.name} + .status.capacity"
+  - to get something like :
+  {
+  "name": "docker-desktop",
+  "cpu": "2",
+  "ephemeral-storage": "61255492Ki",
+  "hugepages-1Gi": "0",
+  "hugepages-2Mi": "0",
+  "memory": "2039264Ki",
+  "pods": "110"
+}
+
+
+KUBECTL DESCRIBE - viewing details
+==================================
+- another command to get valuable info out from API
+- needs a resource type and {optionally} a resource name
+- it is possible to provide a resource name prefix
+  - all matching objects will be displayed
+- kubectl describe will retrieve some extra information about the resource
+- run 'kubectl get nodes' to get list of node names, put name in below cmd
+  - kubectl describe node/<node>
+  - kubectl describe node <node>
+
+- DESCRIBE works for all resources
+
+
+EXPLORING RESOURCE TYPES
+========================
+- we can list all available resource types by running 'kubectl api-resources'
+  - lists all resources in your cluster
+- 'kubectl explain type'
+  - view the definition for a resource types
+- 'kubectl explain node.spec'
+  - view the definition for a field inside a resource
+- 'kubectl explain node --recursive'
+  - get the list of all fields and sub-fields
+
+
+INTROSPECTION vs DOCUMENTATION
+==============================
+- we can access the same information by the reading the website API DOCUMENTATION
+  - that's just what the website has, handy for some things...BUT....
+  - the local API-RESOURCES & EXPLAIN cmds provide info on your specific cluster
+  - communicate w/local API server to retrieve the data
+
+
+TYPE names
+==========
+- most common resource names have singular, plural & short namespace
+- endpoints only have a plural form, eg endpoints
+
+
+KUBECTL Get
+===========
+- a service is a STABLE endpoint to connect to "something"
+  - kubectl get services  {or 'svc'}
+  - kubectl get pods {like docker ps}
+  - kubectl get pods --all-namespaces
+
+
+KUBECTL NAMESPACE BASICS
+========================
+- NAMESPACES allow us to segregate RESOURCES
+  - kubectl get namespaces
+- namespaces filter the view by default
+- K8s puts most of the system stuff into namespace 'kube-system'
+  - most of the commands are looking at namespace 'default'
+  - have to specify which namespace to query to get information if you don't want 'default'
+- kubectl get pods --all-namespaces
+  - kubectl get pods --namespace=kube-system  / -n kube-system
+
+$ kubectl get pods --all-namespaces
+NAMESPACE     NAME                                     READY   STATUS    RESTARTS   AGE
+docker        compose-78f95d4f8c-nd6cx                 1/1     Running   0          157m
+docker        compose-api-6ffb89dc58-sh8ft             1/1     Running   0          157m
+kube-system   coredns-5644d7b6d9-5jzjd                 1/1     Running   0          158m
+kube-system   coredns-5644d7b6d9-mf5wm                 1/1     Running   0          158m
+kube-system   etcd-docker-desktop                      1/1     Running   0          157m
+kube-system   kube-apiserver-docker-desktop            1/1     Running   0          157m
+kube-system   kube-controller-manager-docker-desktop   1/1     Running   0          157m
+kube-system   kube-proxy-6l94j                         1/1     Running   0          158m
+kube-system   kube-scheduler-docker-desktop            1/1     Running   0          157m
+kube-system   storage-provisioner                      1/1     Running   0          157m
+kube-system   vpnkit-controller                        1/1     Running   0          157m
+shpod         shpod                                    1/1     Running   1          106m
+
+- what are all the control plane pods
+  - etcd - our etcd server
+  - kube-apiserver is the API server
+  - kube-controller-manager & kube-scheduler are other control plane components
+  - coredns provides DNS-based service discovery
+  - kube-proxy is the {per-node} component managing port mappings and such
+  - * : <net-name> is the optional (per-node) component managing network overlay
+    - not always shows up, depends on cfg setup
+  - the READY column indicates the number of containers in each pod
+  - NOTE: this only shows containers, you won't see host svcs, eg microk8s
+  - NOTE: different list per each setup, most of these are core
+
+
+KUBERNETES NEWER namespaces
+===========================
+- kube-public
+  - used mostly for installation
+  - mostly for bootstrapping, has 'configmaps'
+  - kubectl -n kube-public get configmaps cluster-info -o yaml
+- kube-node-lease
+  - contains one "Lease" object per nodes
+  - node leases are a new way to implement node heartbeats
+    - ie, node regularly pinging the controlplane to say "I'm alive"

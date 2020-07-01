@@ -6,3 +6,28 @@ Section 04. Installing K8s for Learning
   - Docker Desktop : MAC
   - small setup effort; free flexible environments
   - requires 2GB+ of memory
+
+- Good : Set up a cloud Linux host to run microk8s
+  - great if you don't have the local resources to run K8s
+  - small setup effort, only free for a while
+
+- last choice : Use a browser-based solution
+  - low setup effort, but host is short-lived & has limited resources
+  - not all hands-on examples will work in a browser sandbox
+
+
+K8s With Docker Desktop {MAC}
+=============================
+- great for local dev / test setup
+- requires modern macOS
+- install
+- go into Settings
+  - Kubernetes
+    - check "Enable Kubernetes"
+
+SHPOD
+=====
+- kubectl apply -f https://k8smastery.com/shpod.yaml
+- kubectl attach --namespace=shpod -ti shpod
+- after finishing the course :
+  - kubectl delete -f https://k8smastery.com/shpod.yaml
