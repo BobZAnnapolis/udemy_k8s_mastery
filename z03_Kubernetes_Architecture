@@ -1,0 +1,114 @@
+K8S Architecture
+================
+
+Simple diagram
+- Master  {1 or more}
+  - Control Plane
+  - controls environment
+
+  - API Server
+    - talks w/agents on nodes
+  - Scheduler
+  - Controller Manager
+    - run on 1 or more servers
+  - etcd
+    - {database, key-value store}
+- Node{s}  {1 or more}
+  - infrastructure
+  - operating system
+  - container run-time
+  - kubelet
+    - agent talks back to Master API
+    - talks w/ Docker runtime engine
+  - kube-proxy
+    - takes cms from kubelet
+    - controls networking
+    - container{s}
+
+
+masters & Nodes can run on 1 or more machines/servers/etc
+
+CoreDNS - optional - but needed to handle services to talk to each other
+
+
+k8s architecture : the Nodes
+============================
+- the nodes executing our containers run a collection of services
+  - a container Engine - usually Docker
+  - kubelet : node "agent"
+  - kube-proxy : necessary component, receives orders from agent, network
+- nodes were formerly called "minions"
+
+k8s architecture : the control plane
+====================================
+- k8s logic (its brains) is a collection of services
+  - API server - point of entry to everything
+  - core services, eg scheduler, controller manager, CoreDNS
+  - etcd
+    - highly available key/value pair data store
+    - "the" database of k8s
+- together these form the control plane of a cluster
+- the 'control plane' is also called the "master"
+
+
+Running the control plane on special Nodes
+==========================================
+- very flexible to architect
+- common to reserve a dedicated node for the control Plane
+  - except for single-node development clusters, eg minikube
+- 'machine' with all these services is referred to as "Master"
+- normal applications are restricted from running on this node
+  - by using a mechanism called "taints"
+- when high availability is required, each service of the control plane must be resilient
+- the control plane is then replicated on multiple Nodes
+  - referred to as a "multi-master" setup
+
+Running the control plane outside containers
+============================================
+- the services of the CP can run in or out of containers
+- for instance, etcd is a critical service, some people deploy it directly on a dedicated cluster w/o containers
+- in some hosted k8s offerings, eg AKS, GKE, EKS, the control plane is invisible
+  - we only see a k8s API endpoint
+  - in this case, there is no "master node"
+  - for this reason, it is more accurate to say "control plane" rather than "master"
+
+Container runtimes for k8s
+==========================
+- do we need Docker at all ? No, needs an engine, doesn't have to be Docker
+- by default, Docker was 1st
+- most stable
+- containerd: maintained by Docker, IBM & community
+  - used by Docker, microK8s, GKE, and standalone, has 'ctr' CLI
+- CRI-O: maintained by Red Hat, SUSE, and community, based on containerd
+  - used by OpenShift, Kubic, version matched to K8s
+- minimal backend functionalities allowing K8s to do its thing
+
+- need Docker when :
+  - running apps in containers
+  - need to build images to put into containers
+  - can use others, for this course, most stable
+  - in Development environments, CI pipelines ...
+  - Production servers today
+  - others are in the works
+
+The API & The Pod
+=================
+- API used to interact w/K8s clusters
+- mostly REST APIs
+- allow us to create, read, update, delete resources
+- a few common resource types :
+  - nodes
+  - pods
+  - services
+
+PODS
+====
+- it's an 'idea'
+- abstract idea around 1 or more containers
+- lowest deployable unit in K8s
+- most of the time, 1 container per pod
+- can have multiple containers working together
+- IP addresses are associated with pods, not with individual containers
+  - as such, containers in a pod can share "localhost", and can share volumes
+- multiple containers in a pod are deployed together
+- in reality, Docker doesn't know about a pod, only containers, namespaces, volumes

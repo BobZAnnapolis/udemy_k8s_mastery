@@ -1,0 +1,77 @@
+# Section 2. The What and Why of Kubernetes
+
+  computer orchestration
+  -make decisions about when & where
+
+  - needed cuz of distributed computing, ie, many services in many places
+  - needed something to easily handle this
+
+Container orchestration
+- schedule running of containers on many servers
+- dispatch across many nodes
+- monitor & react to container and server health
+- provide storage, networking, proxy, security, and logging features
+- do all this in a declarative way {think JSON, YAML} rather than imperative
+- provide APIs to allow extensibility & management
+
+- K8S
+- Docker Swarm
+- Apache Mesos
+- Cloud Foundry
+- Amazon ECS
+- MS Azure
+- HashiCorp Nomad
+
+- MANY of these tools run on top of Docker Engine
+
+KUBERNETES is the ONE orchestrator with many distribution, like Linux itself
+
+- K8S "vanilla upstream"  (not a distribution, repos, etc)
+- cloud-managed distros : AKS, GKE, EKS, DOK,...
+- self-managed distros
+  - RedHat OpenShift, Docker Enterprise, Rancher, Canonical Charmed, openSUSE Kubic
+- Vanilla installers : kubeadm, kops, kubicorn, ...
+  - hardest to install, comes out of the box w/LOTS of options
+- CI testing: kind {K*S In Docker}
+- Special Builds: Rancher k3s - smaller k8s distros
+- many more, 86 as of 06/2019
+
+
+K8s Concepts
+============
+- k8s is a container management system
+- it runs and manages containerized applications on a cluster
+  - ie, 1 or more servers
+- often this is simply called "container orchestration"
+- sometimes shortened to kube or k8s
+
+Basic things we can ask K8s to do
+=================================
+- take an image and start 5 containers
+- place an internal load balancer in front of these containers
+- start 10 containers using another image
+- place a public load balancer in front of these containers
+- traffic spikes will cause the cluster to grow & shrink per rules
+- New releases : Replace existing containers w/new image
+- keep processing requests during the upgrade, update containers 1 at a sometimes
+
+Other things we can ask K8s to do
+=================================
+- basic auto-scaling  {node & application scaling}
+- blue/green deployment ; canary deployments
+- long-running services but also batch/1-off or CRON-like jobs
+- overcommit cluster to evict low-priority jobs
+- run services w/stateful data (dbs, etc)
+  - stateful sets
+  - persistent data
+- {RBAC} fine-grained access control defining what can be done and by whom on which resources
+- integrate 3rd party services
+  - service catalog
+    - use plug-ins
+- automating complex tasks (operators)
+  - eg, setting up a db, extend APIs
+
+
+K8S Use Cases
+=============
+-

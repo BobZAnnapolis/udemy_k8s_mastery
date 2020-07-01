@@ -1,0 +1,8 @@
+
+Section 04. Installing K8s for Learning
+=======================================
+
+- Best : Get an environment locally
+  - Docker Desktop : MAC
+  - small setup effort; free flexible environments
+  - requires 2GB+ of memory
