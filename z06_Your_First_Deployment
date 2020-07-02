@@ -2,3 +2,98 @@ Section 06. Your First Deployment
 =================================
 
 - kubectl run
+
+- $ kubectl run pingpong --image alpine ping 1.1.1.1
+kubectl run --generator=deployment/apps.v1 is DEPRECATED and will be removed in a future version. Use kubectl run --generator=run-pod/v1 or kubectl create instead.
+deployment.apps/pingpong created
+
+- need to see that last line of "created" to indicate SUCCESS
+
+- follow up w/"kubectl get all" to see the newly created pods
+
+$ kubectl get all  {gives the default running K8s svc plus these}
+
+# 'kubectl run' created a deployment, deployment.apps/pingpong
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/pingpong   1/1     1            1           2m27s
+
+# thatdeployment created a 'replica set'
+NAME                                 DESIRED   CURRENT   READY   AGE
+replicaset.apps/pingpong-c849c8bbc   1         1         1       2m27s
+
+# that 'replica set' created a pod
+NAME                           READY   STATUS    RESTARTS   AGE
+pod/pingpong-c849c8bbc-48mc2   1/1     Running   0          2m27s
+
+- the "run" accesses a "generator" that creates :
+  - a "deployment" {this is just a resource}
+    - then a "replica set" {another resource}
+      - then a "pod" {another resource}
+  - all 3 resources are "abstractions" that allows K8s to perform granular controls / actions
+  - then the "pod" creates a container
+    - which is a REAL object that is running our "app"
+
+- a "deployment" is a high-level construct
+  - allows scaling, rolling updates, rollbacks
+  - multiple deployments can be used together to implement a 'canary deployment'
+  - delegates pods management to replica sets
+
+- a "replica set" is a low-level construct
+  - makes sure that a given number of identical pods are running
+  - allows scaling
+  - RARELY used directly
+
+- each 'resource' creation causes a "spec" to be created defining what that resource contains & does
+
+KUBECTL RUN - USED PRIOR TO v1.18 to perform the above
+  - command line changes to 'KUBECTL CREATE DEPLOYMENT' starting w/v.18
+  - 'KUBECTL RUN' used to create a single pod
+
+
+
+KUBECTL LOGS
+============
+- like 'docker logs', has built-in 'kubectl logs' cmd
+- 'kubectl logs deploy/pingpong'
+$ kubectl logs deploy/pingpong
+PING 1.1.1.1 (1.1.1.1): 56 data bytes
+64 bytes from 1.1.1.1: seq=0 ttl=37 time=59.344 ms
+64 bytes from 1.1.1.1: seq=1 ttl=37 time=14.025 ms
+64 bytes from 1.1.1.1: seq=2 ttl=37 time=13.822 ms
+64 bytes from 1.1.1.1: seq=3 ttl=37 time=17.028 ms
+64 bytes from 1.1.1.1: seq=4 ttl=37 time=13.358 ms
+64 bytes from 1.1.1.1: seq=5 ttl=37 time=14.914 ms
+
+- above just gets the logs for that 1 pod
+  - if the pod had multiple containers - need to be more specific
+
+- 'kubectl scale deploy/pingpong --replicas 3'
+- 'kubectl get all'
+NAME                           READY   STATUS    RESTARTS   AGE
+pod/pingpong-c849c8bbc-48mc2   1/1     Running   0          32m
+pod/pingpong-c849c8bbc-7cgdm   1/1     Running   0          4s
+pod/pingpong-c849c8bbc-thkzt   1/1     Running   0          4s
+
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/pingpong   3/3     3            3           32m
+
+NAME                                 DESIRED   CURRENT   READY   AGE
+replicaset.apps/pingpong-c849c8bbc   3         3         3       32m
+
+- pod lists 3 separate
+- deployment & replicaset update counts to 3
+
+
+DELETING PODS & WATCHING THE EFFECTS
+====================================
+- 'kubectl delete pod/...'
+- using a 'watch ... pods' in 1 window, delete 1 of them in another session
+- QUICKLY - transitions into terminating state and a brand new one is created & starts Running
+
+- 'kubectl delete pod' terminates the pod gracefully
+  - ie sending it the TERM signal & waiting for it to shutdown
+- as soon as the pod is in a "Terminating" state, the Replica Set replaces it
+- but we can still see the output of the "Terminating" pod in kubectl logs for 30 seconds
+  - that's the 'grace period'
+  - when that is over, pod is gone
+  
