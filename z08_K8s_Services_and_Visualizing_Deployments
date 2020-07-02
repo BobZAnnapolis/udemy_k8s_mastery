@@ -5,4 +5,123 @@ Section 08. K8s Services and Visualizing Deployments
 A DEPLOYMENT VISUAL WALKTHROUGH
 ===============================
 
-- 
+- "kubectl run web --image=nginx --replicas=3"
+
+- what is really happening when we run this command ?
+
+- environment consists of :
+  - control plane
+    - etcd
+    - API Server
+    - scheduler
+    - controller manager
+  - 2 worker nodes, each running :
+    - 'kubelet' agent
+    - kube-proxy
+    - network overlay
+
+- kubectl talks to API Server -> etcd -> stores a deployment spec
+- user gets result - 'created'
+  - this just means the info stored in etcd, not really done yet
+- controller manager has a bunch of controllers available to it as resources
+- talking w/apiserver seeing if a new deployment spec / controller is available
+  - gets told yes
+  - looks at contents, ie command parms
+  - decodes it and writes a 'replica set' spec into etcd
+- controller manager in a constant polling cycle looking for new 'specs'
+  - can be tweaked by users - please know what you are doing
+- checks again, sees a new 'replica set' resource spec
+  - decodes it to see what is needed
+  - creates 3 'pod's - init'd to a 'Pending' state
+- 'scheduler' is also polling regularly
+  - looking for new resources/specs in a 'Pending' state
+  - finds them
+  - runs algorithm to determine what to do, where to put them
+  - schedules them to be put on the worker nodes - changes spec
+- worker nodes' 'kubelet' talking with API server
+  - checking to see if they have anything to do
+  - they now do
+  - access new spec to get info
+  - talks with local Docker engine to create pod/containers
+  - updates etcd specs to 'Running' plus any other pertinent info
+
+- kubelet on the nodes do the actual work
+
+
+
+BASIC SERVICE TYPES
+===================
+
+CoreDNS provides the DNS resolution for services so communication occurs
+
+EXPOSING CONTAINERS
+-------------------
+- 'kubectl expose' creates a service for existing pods
+- a 'service' is a stable address for a pod (or a bunch of pods)
+- if we want to connect to our pod(s), we need to create a service
+- once a service is created, CoreDNS will allow us to resolve it by name
+  - ie, after creating a service 'hello', the name 'hello' will resolve to something
+- there are different types of services :
+  - ClusterIP
+  - NodePort
+  - LoadBalancer
+  - ExternalName
+
+
+Every K8s setup has the following :
+- ClusterIP (default type)
+  - a virtual IP address is allocated for the service (in an internal private range)
+  - this IP address is reachable ONLY AVAILABLE WITHIN the cluster (nodes & pods)
+  - our code can connect to the service using the original port number
+- NodePort
+  - a port is allocated for the service (by default, in 30000-32768 range)
+  - that port is made available ON ALL OUR NODES and anybody can connect to it
+  - our code must be changed to connect to that new port number
+
+These service types are ALWAYS available.
+
+Under the hood, 'kube-proxy' is using a userland proxy and a bunch of iptables rules
+
+More Service Types
+- LoadBalancer
+  - an external load balancer is allocated for the service
+  - the load balancer is configured accordingly
+    - eg, a NodePort service is created, and the load balancer sends traffic to that port
+  - available only when the underlying infrastructure provides some "load balancer as a service"
+    - eg AWS, Azure, GCE, OpenStack, ...
+- ExternalName
+  - the DNS entry managed by CoreDns will just be a CNAME to a provided record
+  - no port, no IP address, no nothing else is allocated
+
+
+EXPOSING PODS WITH ClusterIP
+----------------------------
+- running containers with open ports
+- since 'ping' doesn't have anything to connect to, we'll have to run something else
+- we could use the 'nginx' official image, but ...
+  - ... we wouldn't be able to tell the backends from each other
+- we are going to use 'bretfisher/httpenv', a tiny HTTP server written in Go
+- 'bretfisher/httpenv' listens on port 8888
+- it serves its environment variables in JSON format
+- the env vars will include 'HOSTNAME', which will be the pod name, and therefore different on each backend
+
+
+LAYER 4 SERVICES
+----------------
+- you can assign IP addresses to services, but they are still layer 4
+  - ie a service is not an IP address: it's an IP address + protocol + port
+- this is caused by the current implementation of 'kube-proxy'
+  - it relies on mechanisms that don't support layer 3
+- as a result, you HAVE to indicate the port number for your service
+  - eg, host networking mode
+
+
+SECTION BASH HISTORY
+--------------------
+kubectl create deployment httpenv --image=bretfisher/httpenv
+kubectl scale deployment httpenv --replicas 10
+kubectl expose deployment httpenv --port 8888
+kubectl get service
+history
+
+doing "kubectl get pods -w" in another session to watch the above commands progress
