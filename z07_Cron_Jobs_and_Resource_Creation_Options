@@ -1,0 +1,162 @@
+Section 07. Cron Jobs and Resource Creation Options
+===================================================
+
+- more RUN command
+
+- creates 'templates' in the background which contain specifications for what to 'run'
+
+- what if we wanted to start a "one-shot" container that DOESN'T get restarted ?
+  - 'kubectl run --restart=OnFailure'  or 'kubectl run --restart=Never'
+  - these commands would create 'jobs' or 'pods' instead of deployments
+- under the hood, 'kubectl run' invokes "generators" to create resource descriptors
+- we could also write these resource descriptions ourselves in YAML
+  - and create them on a cluster using 'kubectl apply -f fname'
+- with 'kubectl run --schedule=...', can create CRON jobs
+
+
+SCHEDULING PERIODIC BACKGROUND WORK
+===================================
+- a CRON job is a job that will be executed at specific intervals
+- it requires a 'schedule' of when to run, represented as 5 space-separated fields
+  - minute  [0,59]
+  - hour  [0,23]
+  - day of the month  [1,31]
+  - month of the year  [1,12]
+  - day of the week  [0,6] 0=Sunday
+- * means all valid values; "/N" means every "N"
+  - eg, '*/3 * * * *' means "every 3 minutes"
+
+- kubectl run --schedule="*/3 * * * *" --restart=OnFailure --image=alpine sleep 10
+kubectl run --generator=cronjob/v1beta1 is DEPRECATED and will be removed in a future version. Use kubectl run --generator=run-pod/v1 or kubectl create instead.
+cronjob.batch/sleep created
+- what happens
+  - at the specified schedule, the Cron job will create a job
+  - the job will create a pod
+  - the job will make sure that the pod completes
+    - re-creating another one if it fails, for instance if the node fails
+
+
+RESOURCE CREATION & RUN CHANGES
+===============================
+- what about that deprecation warning ?
+  - as we can see from the execution, 'kubectl run' can do many things
+  - the exact type of resource created is not obvious
+- K8s is trying to make 'run' behave more like the 'docker run' command
+- to make things more explicit, it is better to use 'kubectl create'
+  - 'kubectl create deployment' to create a deployment
+  - 'kubectl create job' to create a job
+  - 'kubectl create cronjob' to run a job periodically
+- eventually, 'kubectl run' will be used only to start 1-shot pods
+
+- 3 ways to 'create' deployments
+  - kubectl run
+    - easy way
+    - versatile
+  - kubectl create
+    - explicit, but lacks some features
+    - can't create a CRONJOB < v1.14
+    - can't pass command line arguments to deployments
+  - kubectl create -f foo.yaml  or  kubectl apply -f foo.yaml
+    - all features available
+    - requires writing yaml
+
+- KUBECTL APPLY
+  - REQUIRES A YAML file
+  - file contains all parms to do everything
+
+
+STREAMING LOGS of MULTIPLE pods
+===============================
+- can we stream the logs of all of our pods ?
+  - kubectl logs -l run=pingpong --tail 1 -f
+    - "-l" - selector
+- there is a limit to the number of log streams that can be followed
+
+-$ kubectl scale deployment pingpong --replicas=8
+deployment.apps/pingpong scaled
+$ kubectl logs -l run=pingpong --tail 1 -f
+error: you are attempting to follow 8 log streams, but maximum allowed concurrency is 5,
+use --max-log-requests to increase the limit
+
+- why can't we stream the logs of many pods ?
+  - 'kubectl' opens 1 connection to the API Server per pod
+  - for each pod, the API Server opens 1 extra connection to the corresponding kubelet
+  - if there are 1000 pods in our deployment, that's 1000 inbound + 1000 outbound connections on the API Server
+  - this could easily put a lot of stress on the API Server
+- < v1.14 - was decided to NOT allow multiple connections
+- > v1.14 - allowed, but defaults to max=5
+  - max overridden using --max-log-requests=N
+
+
+SHORTCOMINGS OF KUBECTL LOGS
+============================
+- we don't see which pod sent which log line
+- if pods are restarted / replaced, the log stream stops
+- if new pods are added, we don't see their LOGS
+- to stream the logs of multiple pods, we need to write a selector
+- there are external tools to address these SHORTCOMINGS
+  - STERN
+
+
+BETTER CLI LOGS WITH STERN
+==========================
+- the kubectl logs command has limitations :
+  - it cannot stream logs from multiple pods at a time
+  - when showing logs from multiple pods, it mixes them all together
+
+- STERN is an open source project
+  - allows you to tail multiple pods on K8s and multiple containers within the pod.
+  - each result is color-coded for quicker debugging
+- the query is a regular expression so the pod name can easily be filtered and you don't need
+  to specify the exact id (for instance omitting the deployment id). If a pod is deleted it
+  gets removed from tail and if a new pod is added it automatically gets tailed.
+
+- --tail N flag shows the last N lines for each containers
+- -t / --timestamps
+- --all-namespaces
+
+
+CLEAN UP PINGPONG & CronJOBS
+============================
+- remove our deployment and CronJOBS
+- 'kubectl delete deployment/pingpong  cronjob/sleep'
+  - remember that the actual pingpongs will terminate immediately but will take 30 seconds before
+    being removed completely
+
+
+watch kubectl get pods
+watch --help
+watch kubectl get pods  -n 5
+watch --help
+watch -n 5 kubectl get pods
+kubectl stop -h
+kubectl
+kubectl run --schedule="*/3 * * * *" --restart=OnFailure --image=alpine sleep 10
+kubectl get pods
+kubectl get all
+kubectl get cronjobs
+kubectl get cronjobs
+kubectl get pods
+kubectl get pods
+kubectl logs -l run=pingpong --tail 1 -f
+kubectl logs -l run=pingpong --tail 1 -f
+kubectl scale deployment pingpong --replicas=8
+kubectl get all
+kubectl logs -l run=pingpong --tail 1 -f
+kubectl logs -l run=pingpong --tail 1 -f --max-log-requests
+kubectl logs -l run=pingpong --tail 1 -f --max-log-requests=10
+stern
+stern pingpong
+stern pingpong -n default
+stern --tail 1 --timestamps pingpong -n default
+stern --tail 1 --timestamps pingpong
+stern --tail 1 --timestamps pingpong -n default
+stern --tail 1 pingpong -n default
+stern --tail 1 --timestamps pingpong -n default
+kubectl delete deployment/pingpong cronjob/sleep
+kubectl get pods
+kubectl get all
+kubectl get all
+kubectl get all
+kubectl get all
+history
