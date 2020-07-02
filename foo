@@ -1,7 +1,0 @@
-IP=$(kubectl get svc httpenv -o go-template --template '{{ .spec.clusterIP }}')
-echo {$IP}
-curl http://$IP:8888/
-# repeat the following - should get different HOSTNAMEs round-robin
-# since initial command created 10 pods
-curl -s http://$IP:8888/ | jq .HOSTNAME
-
