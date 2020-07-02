@@ -3,4 +3,68 @@ z09_Testing_and_Visualizing_Service_Traffic
 
 Remember CoreDNS for Service DNS Resolution
 -------------------------------------------
-- 
+- Earlier I talked about CoreDNS being an optional, but necessary thing, inside your Kubernetes cluster.
+Until now, you wouldn't have needed it, because we haven't used DNS inside the cluster to find Services yet.
+One of the jobs for a Service resource is to create the DNS name for the Service IP, which then makes
+something like httpenv resolvable on the Pod networks.
+
+That means that you need to ensure CoreDNS is running before we continue.
+
+If you are using Docker Desktop or minikube, DNS is running out-of-the-box. All done :)
+
+But if you're using MicroK8s, DNS needs to be enabled manually with the command
+"microk8s.enable dns" so that it'll setup and start CoreDNS. If you're using MicroK8s
+you can also see my recommended setup and config slides for it (same from Section 2) here.
+
+
+Testing Your ClusterIP Service
+------------------------------
+- need to be running "shpod"
+- get the ip address
+  - IP=$(kubectl get svc httpenv -o go-template --template '{{ .spec.clusterIP }}')
+- send a few requests from another session
+  - curl http://$IP:8888/
+- too much output, filter w/js
+  - curl -s http://$IP:8888/ | jq .HOSTNAME
+
+
+HEADLESS SERVICES
+-----------------
+- what if we don't want a load balancer
+- above IP cli command won't work, need to get addresses to use differently
+- sometimes we want to access our scaled services directly, not thru 1 common access point
+  - if we want to save a tiny little bit of latency (typically less than 1 ms)
+  - if we need to connect over arbitrary ports (instead of a few fixed ones)
+  - if we need to communicate over another protocol than UDP or TCP
+  - if we want to decide how to balance the requests client-side
+  - ...
+- in that case, we can use a "headless service"
+
+- a headless service is obtained by setting the clusterIP field to NONE
+  - either with --cluster-ip=NONE, or by providing a custom YAML
+- as a result, the service doesn't have a virtual IP address
+- since there is no virtual IP address, there isno load balancer either
+- CoreDNS will return the pods' IP addresses as multiple A records
+- this gives us an easy way to discover all the replicas for a deployment
+
+
+SERVICE ENDPOINTS
+-----------------
+- a service has a number of "endpoints"
+- each endpoint is a host + port where the service is available
+- the endpoints are maintained and updated automatically by K8s
+  - kubectl describe service httpenv
+- to see ENDPOINTS
+  - kubectl get endpoints
+  - kubectl get endpoints httpenv -o yaml
+  - kubectl get pods -l app=httpenv -o wide
+
+
+EXPOSING SERVICES TO THE OUTSIDE WORLD
+--------------------------------------
+- the default type (ClusterIP) only works for internal traffic
+- if we want to accept external traffic, we can use :
+  - NodePort (expose a service on a TCP port between 30000-32768)
+  - LoadBalancer  (provision a cloud LB for our service)
+  - ExternalIP  (use one node's external IP address)
+  - Ingress  (a special mechanism for HTTP services)
