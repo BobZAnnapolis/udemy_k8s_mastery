@@ -4,3 +4,98 @@ z11_Our_Sample_Microservice_DockerCoins
 
 Our Sample Microservice App : DockerCoins
 -----------------------------------------
+
+- DockerCoin miner
+  - generate a few random bytes
+  - hash the bytes
+  - increment a counter (to keep track of speed)
+  - do forever
+
+- 5 SERVICES
+  - rng - web service generating random bytes
+  - hasher - web service computing hash of POSTed data
+  - worker - background process calling rng & hasher
+  - webui - web interface to watch progress
+  - redis - data store - holds a counter, updated by worker
+
+- 5 services are visible in the application's Compose file, dockercoins-compose.yml
+
+- worker invokes web service rng (GET) to generate random bytes
+- worker invokes web service hasher (POST) to hash these bytes
+- worker does this infinitely
+- every second, worker updates redis (TCP) to indicate how many loops were done
+- webui queries redis (TCP), and computes and exposes "hashing speed" in the browser to user (GET)
+
+
+SERVICE DISCOVERY IN CONTAINER-LAND
+-----------------------------------
+- how does service find out the address of the other ones
+  - we do not hard-code IP addresses in code
+  - we do not hard-code FQDNs in code
+  - we just connect to a service name, and 'container magic' does the rest
+    - ie, a crafty dynamic embedded DNS server
+
+- worker will log HTTP requests to rng and hasher
+- rng & hasher will log incoming HTTP requests
+- webui will provide a graph on 'coins mined per second'
+
+
+DOCKER-COINS QUICK COMPOSE
+==========================
+- Compose is great for local development
+- download file, curl -o docker-compose.yml https://k8smastery.com/dockercoins-compose.yml
+- docker-compose up, access localhost:8000
+
+
+SHIPPING IMAGES WITH A REGISTRY
+===============================
+- there is no built-in registry by default w/K8s
+- for development using Docker, it has build, ship & run features
+- now that we want to run on a cluster, things are different
+- K8s doesn't have a build feature built-in
+- the way to ship (pull) images to K8s is to use a registry
+
+
+Building & Shippings Images
+---------------------------
+- Manually :
+  - build locally (w/Docker build)
+  - push to a registry  {eg, DockerHub}
+- Automatically : {CI/CD}
+  - build & test locally
+  - when ready, commit & push to a code repository   {eg, GitHub}
+  - the code repository notifies an automated build system
+  - that system gets the code, builds it, then pushes the image to the registry
+
+
+Which registry do we want to use ?
+----------------------------------
+- there are SAAS products like Docker Hub, Quay, GitLab,....
+- each major cloud vendor has an option as well
+  - ACR:Azure; ECR:AWS; GCR:Google Cloud, ...
+- commercial products available
+  - Quay, GitLab, Docker Enterprise DTR, ...
+- open source options
+  - Quay, Portus, OpenShift Portus, Kraken, ...
+
+- when picking a registry, pay attention to :
+  - its build system
+  - multi-user auth & mgmt (RBAC)
+  - storage features (replication, caching, garbage collection)
+
+
+DockerCoins on K8s
+------------------
+- create 1 deployment for each component
+  - rng, hasher, worker, webui, redis
+- expose deployments that need to accept connections
+  - hasher, redis, rng, webui
+- for redis - use the official redis images
+- for the others, need to build images and push them to some registry
+  - teacher already built IMAGES upon DockerHub
+    - dockercoins/hasher:v0.1
+    - dockercoins/rng:v0.1
+    - dockercoins/worker:v0.1
+    - dockercoins/webui:v0.1
+
+- deploying in next chapter
