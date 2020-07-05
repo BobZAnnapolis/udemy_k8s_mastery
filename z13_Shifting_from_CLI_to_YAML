@@ -1,0 +1,58 @@
+z13_Shifting_from_CLI_to_YAML
+=============================
+- take cli history from prior chapter and move into YAML file
+
+- so far we've created resources using :
+  - kubectl run
+  - kubectl create deployment
+  - kubectl expose
+
+- can also create resources directly with YAML manifests
+
+kubectl apply vs create
+-----------------------
+- kubectl create -f whatever.yml
+  - creates resources if they don't exist
+  - if resources already exist, don't alter them
+    - and display error message
+
+- kubectl apply -f whatever.yml
+  - creates resources if they don't exist
+  - if resources already exist, update them
+    - to match definition in YAML file
+  - store manifest as an 'annotation' in the resource spec
+
+- yaml files have a pre-defined format
+
+
+K8s Dashboard
+-------------
+- K8s resources can also be viewed with an official web UI
+- dashboard usually exposed over HTTPS
+  - this requires obtaining a proper TLS certificate
+- DASHBOARD USERS need to authenticate
+- we are going to use a dangerous shortcut
+  - we could (& should) use "Let's Encrypt"...
+  - ...but we don't want to deal w/TLS certificates  (this is a test/learn system)
+- we could (& should) learn how authentication & authorization work ...
+  - ... but we will use a guest account with admin access instead
+- OK for local test / dev system
+
+Running a very insecure DASHBOARD
+---------------------------------
+- deploy w/1 command
+- creates all necessary resources
+- all defined in a YAML file
+  - kubectl apply -f https://k8smastery.com/insecure-dashboard.yaml
+- THIS IS A BACKDOOR TO YOUR CLUSTER
+- 3 authentications
+  - token  - associated w/a role that has appropriate permissions
+  - kubeconfig - eg using ~/.kube/config file
+  - "skip" - uses the dashboard 'service' account
+
+
+BASH HISTORY  {files copied locally}
+------------
+kubectl apply -f https://k8smastery.com/dockercoins.yaml
+kubectl apply -f https://k8smastery.com/insecure-dashboard.yaml
+kubectl get svc dashboard

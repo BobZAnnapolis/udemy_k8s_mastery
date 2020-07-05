@@ -1,3 +1,154 @@
 Section 12. Walking Thru App Deployments
 ========================================
--
+- create 5 separate deployments, 1 for each service
+- expose the ports that services need to communicate
+- check the logs
+
+Exposing DockerCoins webui
+--------------------------
+- expose it with a NodePort
+  - create a NodePort service for webui
+    - kubectl expose deploy/webui --type=NodePort --port=80
+  - check that the port was allocated
+    - kubectl get svc
+
+
+Scaling DockerCoins Deployments
+-------------------------------
+- our ultimate goal is to get more DockerCoins
+  - ie increase the number of loops per second shown on the web UI, currently 0-4
+- increasing the worker "works" for a bit,
+  - scale deployment worker --replicas=2 - doubles coins
+  - scale deployment worker --replicas=3 - triples coins
+  - scale deployment worker --replicas=10 - DIDN'T increase 10 fold - actually went down ???
+    - indication of an issue somewhere else
+- the graph will peak at 10 hashes / second
+  - we can add as many workers as we want, will never get past 10 hashes/second  - why ?
+
+Why are we stuck at 10 hashes per second ?
+------------------------------------------
+- if this was high quality, production code, we would have instrumentation
+  - Datadog, Honeycomb, New Relic
+- since it's not ....
+- let's use local tools, benchmark the web services
+  - eg ab, httping
+- we want to check hasher and rng
+  - httping
+    - just like ping, but using HTTP GET requests
+      - it measures how long it takes to perform 1 GET request
+    - httping [-c count] http://host:port/path
+      - or httping ip.ad.dr.ess
+  - use httping on the ClusterIP addresses of our services
+    - analyze the data
+    $ httping -c 3 $HASHER
+    PING 10.101.121.227:80 (/):
+    connected to :80 (210 bytes), seq=0 time=  3.30 ms
+    connected to :80 (210 bytes), seq=1 time=  1.35 ms
+    connected to :80 (210 bytes), seq=2 time=  1.64 ms
+    --- http://10.101.121.227/ ping statistics ---
+    3 connects, 3 ok, 0.00% failed, time 1073741827009ms
+    round-trip min/avg/max = 1.3/2.1/3.3 ms
+    [192.168.65.3] (kubernetes:default) root@shpod ~
+
+    $ httping -c 3 $RNG
+    PING 10.109.222.54:80 (/):
+    connected to :80 (158 bytes), seq=0 time=755.61 ms
+    connected to :80 (158 bytes), seq=1 time=756.70 ms
+    connected to :80 (158 bytes), seq=2 time=761.91 ms
+    --- http://10.109.222.54/ ping statistics ---
+    3 connects, 3 ok, 0.00% failed, time 1073741829281ms
+    round-trip min/avg/max = 755.6/758.1/761.9 ms
+    [192.168.65.3] (kubernetes:default) root@shpod ~
+    $
+
+- RNG appears to be the bottleneck
+  - rng not generating enough random numbers
+    - fake problem - for demo purposes - but this is why
+- solution : scale out multiple RNGs on multiple containers
+  - won't work since we are currently using a single node cluster
+    - will come back to this later in course
+
+BASH HISTORY {shpod}
+--------------------
+kubectl create deployment redis --image=redis
+kubectl create deployment hasher --image=dockercoins/hasher:v0.1
+kubectl create deployment rng --image=dockercoins/rng:v0.1
+kubectl create deployment webui --image=dockercoins/webui:v0.1
+kubectl create deployment worker --image=dockercoins/worker:v0.1
+kubectl get deployments
+kubectl get deploy -w
+kubectl expose deploy/webui --type=NodePort --port=80
+kubectl get deploy -w
+kubectl scale deployment worker --replicas=2
+kubectl scale deployment worker --replicas=3
+kubectl scale deployment worker --replicas=10
+HASHER=$(kubectl get svc hasher -o go-template={{.spec.clusterIP}})
+RNG=$(kubectl get svc rng -o go-template={{.spec.clusterIP}})
+echo $HASHER
+echo $RNG
+httping -c 3 $HASHER
+httping -c 3 $RNG
+history
+
+
+Assignment
+----------
+Let's deploy another application called wordsmith
+
+Wordsmith has 3 components:
+a web frontend bretfisher/wordsmith-web
+an API backend bretfisher/wordsmith-words
+a postgres DB bretfisher/wordsmith-db
+
+These images have been built and pushed to Docker Hub
+
+We want to deploy all 3 components on Kubernetes
+
+
+
+Here's how the parts of this app communicate with each other:
+
+The web frontend listens on port 80
+The web frontend should be public (available on a high port from outside the cluster)
+The web frontend connects to the API at the address http://words:8080
+The API backend listens on port 8080
+The API connects to the database with the connection string pgsql://db:5432
+The database listens on port 5432
+
+Your Assignment is to create the kubectl create commands to make this all work
+
+This is what we should see when we bring up the web frontend on our browser:
+
+  (You will probably see a different sentence, though.)
+
+- Yes, there is some repetition in that sentence; that's OK for now
+
+- If you see empty LEGO bricks, something's wrong ...
+
+Questions for this assignment
+
+1. What deployment commands did you use to create the pods?
+kubectl create deployment db --image=bretfisher/wordsmith-db
+kubectl create deployment web --image=bretfisher/wordsmith-web
+kubectl create deployment words --image=bretfisher/wordsmith-words
+
+2. What service commands did you use to make the pods available on a friendly DNS name?
+kubectl expose deployment db --port=5432
+kubectl expose deployment web --port=80 --type=NodePort
+kubectl expose deployment words --port=8080
+
+or
+
+kubectl create service clusterip db --tcp=5432
+kubectl create service nodeport web --tcp=80
+kubectl create service clusterip words --tcp=8080
+
+Then you'll want to get the port that web is listening on the host:
+
+kubectl get service web
+
+3. If we add more wordsmith-words API pods, then when the browser is refreshed, you'll
+see different words. What is the command to scale that deployment up to 5 pods?
+Test it to ensure a browser refresh shows different words.
+
+kubectl scale deployment words --replicas=5
