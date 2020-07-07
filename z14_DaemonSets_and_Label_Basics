@@ -1,3 +1,112 @@
 z14_DaemonSets_and_Label_Basics
 ===============================
-- 
+
+Daemon Sets
+-----------
+- we want to scale rng in a way that is different from how we scaled worker
+- we want 1 and exactly 1 instance of rng per node
+- we do NOT want 2 instances of rng on the same node
+- we will do that with a daemon set
+
+Daemon Sets in practice
+-----------------------
+- daemon sets are great for cluster-wide, per-node processes :
+  - kube-proxy
+  - CNI network plug-ins
+  - monitoring agents, backup agents
+  - hardware management tools
+  - etc
+- they can also be restricted to run only on some nodes
+  - use labels & selectors
+
+
+Creating a daemon set
+---------------------
+- as of K8s v1.15, CLI cannot create 1 - have to use YAML
+  - no create command parameters exist for this
+- BUT when using YAML - can create EVERY kind of resource by providing a YAML description
+  - kubectl apply -f daemon-desc.yaml
+- how do we create the YAML desc ?
+  - read the docs
+  - copy an existing example
+
+Forcing Deployments
+-------------------
+- use kubectl to get the description of an existing resource in YAML format & pipe to a file, edit
+  - eg kubectl get deploy/rng -o yaml >rng.yaml
+- edit the YAML file, change 'Kind' to DaemonSet, save & apply -f
+  - get a bunch of errors cuz format of YAML file has unknown fields as well as missing required fields
+    - eg, "unknown field replicas"
+  - could fix the YAML 1 at a time by removing all the unknown fields & retrying
+    - time-consuming, but you'll learn a lot
+  - could also use CLI parm "--validate=false" to 'ignore' those fields
+    - that worked but ..... can it be that easy ?
+  - NOT really
+    - doing a 'kubectl get all' shows previous stuff but also a new resource
+      - NAME                 DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+        daemonset.apps/rng   1         1         1       1            1           <none>          47s
+- by adding just this 1 new rng daemon set - webui has gone from averaging around 10 to @14-15
+  - why ?  - good r bad ? - next section
+  - DON'T DO THIS IN REAL WORLD - it re-uses the LABELs & SELECTORs in the resource spec
+    - you MIGHT want to do this but most times you DO NOT !!
+
+
+Labels & selectors
+------------------
+- we just added a daemon set for rng and overall performance imnproved
+- the rng service is load balancing requests to a set of pods
+- that set of pods is defined by the selector of the rng service
+  - kubectl describe service rng
+    - selector = 'app-rng'
+      - means "all pods having the label 'app=rng'"
+      $ kubectl describe service rng
+      Name:              rng
+      Namespace:         default
+      Labels:            app=rng
+      Annotations:       kubectl.kubernetes.io/last-applied-configuration:
+                           {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"labels":{"app":"rng"},"name":"rng","namespace":"default"},"spec":{"ports...
+      Selector:          app=rng
+      Type:              ClusterIP
+      IP:                10.96.181.178
+      Port:              <unset>  80/TCP
+      TargetPort:        80/TCP
+      Endpoints:         10.1.0.103:80,10.1.0.104:80
+      Session Affinity:  None
+      Events:            <none>
+
+***
+- the selector value determines the pods that it is going to send connections to
+  - if any pods has this value, it will get a connection
+
+- can use selectors with many kubectl commands to narrow the search
+  - eg kubectl get pods -l app=rng
+
+- a service is always going to send a connection to a pod - looking for matching selector
+
+- but why do these pods have this 'app=rng' label ?
+  - where do these labels come from ?
+    - when we create a deployment with 'kubectl create deployment rng', this deployment gets the label 'app=rng'
+    - the replica sets created by this deployment get the same label
+    - the pods created by these replica sets get the same label
+    - when we created the daemon set from the deployment, we re-used the same spec with this label
+    - therefore, the pods created by the daemon set get the same labels
+      - eg, when we use 'kubectl run stuff', the label would be 'run=stuff'
+
+
+BASH HISTORY
+============
+1  kubectl get all
+2  ls -al
+3  vi dockercoins.yaml
+4  kubectl apply -f dockercoins.yaml
+5  kubectl get deploy/rng
+6  kubectl get deploy/rng -o yaml >rng.yaml
+7  cat rng.yaml
+8  vi rng.yaml
+9  kubectl apply -f rng.yaml
+10  kubectl apply -f rng.yaml --validate=false
+11  kubectl get all
+12  kubectl describe service rng
+13  kubectl get pods -l app=rng
+14  kubectl get pods --selector app=rng
+15  history
