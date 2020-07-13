@@ -3,4 +3,46 @@ z17_Validating_Your_K8s_Changes
 
 Server Dry Run
 --------------
-- 
+- we already talked about using --dry-run for building YAML
+- let's talk more about options for testing YAML
+- including testing against the live cluster API
+
+
+Using --dry-run w/kubectl apply
+-------------------------------
+- the --dry-run option can also be used w/'kubetcl apply'
+- however, it can be misleading - it doesn't do a 'real' dry run
+- let's see what happens in the following scenario :
+  - generate the YAML for a deployment
+  - tweak the YAML to transform it into a daemonset
+  - apply that YAML to see what would actually be created
+
+
+The limits of kubectl apply --dry-run
+-------------------------------------
+- generate the YAML for a deployment
+  - kubectl create deployment web --image=nginx -o yaml > web.yaml
+- change the 'kind' in the YAML to make it a daemonset
+- ask kubectl what would be applied
+  - kubectl apply -f web.yaml --dry-run --validate=false -o yaml
+- the resulting YAML doesn't represent a valid Daemonset
+
+
+Advantages of --server-dry-run
+------------------------------
+- the YAML is verified much more extensively
+- the only step that is skipped is the "write to etcd"
+- YAML that passes server-side dry run should apply successfully
+  - unless the cluster state changes by the time the YAML is actually applied
+- validating or mutating hooks that have side effects can also be an issue
+
+
+Kubectl diff
+------------
+- k8s 1.13 introduced kubectl diff
+- kubectl diff does a server-side dry run, and shows differences, a la git diff
+- don't need to specify --validate=false
+- curl -O https://k8smastery.com/just-a-pod.yaml
+- kubectl apply -f just-a-pod.yaml
+- edit yaml change image tag to :1.17
+- kubectl diff -f just-a-pod.yml
