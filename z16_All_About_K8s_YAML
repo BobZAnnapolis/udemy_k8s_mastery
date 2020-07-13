@@ -4,3 +4,157 @@ z16_All_About_K8s_YAML
 
 YAML Creation Basics
 --------------------
+
+Authoring yaml
+--------------
+- to use K8s is to live in YAML
+- it's more important to learn the foundations then to memorize all YAML keys
+- there are various ways to generate YAML w/K8s
+  - kubectl run
+  - kubectl create deployment (& a few other create variants)
+  - kubectl expose
+- these commands use 'generators' because the API only accepts YAML {json}
+  - PRO : they are easy to use
+  - CON: They have limits
+
+- when & why do we need to write our own YAML ?
+- how do we write YAML from scratch ?
+- and maybe, what is YAML ?
+
+YAML Basics
+-----------
+- it's technically a superset of JSON, designed for humans
+- JSON was good for machines, but not humans
+- spaces set the structure. One space off & game over
+- REMEMBER SPACES NOT TABS, EVER
+- 2 spaces standard, but 4 works also
+- don't have to learn all YAML features but key concepts you need are :
+  - key/value pairs
+  - array/lists
+  - dictionary/maps
+
+
+Basic Parts of any K8s Resource {manifest}
+-------------------------------
+- can be in YAML or JSON - usually YAML
+- each file can contain 1 or more manifest
+  - each manifest describes an API object {deployment, service, etc}
+- each manifest needs 4 parts :
+  - apiVersion
+  - kind
+  - metadata
+  - spec
+- a simple Pod in YAML
+apiVersion: v1
+kind: Pod  {usually camelCase}
+metadata:
+  name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx.1.17.3
+
+
+The limits of generated YAML
+----------------------------
+- advanced (& even not-so-advanced) features require us to write YAML
+  - pods w/multiple containers
+  - resource limits
+  - health checks
+  - many other resource options
+- other resource types don't have their own commands
+  - daemonsets
+  - statefulsets
+  - More
+- how do we create the ones w/o commands ?
+
+
+we don't have to start from scratch
+-----------------------------------
+- output yaml form existing resources
+  - create a resource, eg deployment
+  - dump its yaml with 'kubectl get -o yaml'
+  - edit the YAML
+  - use 'kubectl apply -f' w/yaml file to :
+    - update the resource - if it's the same kind
+    - create a new resource - if it's a different kind
+- or we have the docs w/templates, github as well
+
+
+Generating YAML w/o creating resources
+--------------------------------------
+- we can use the '-o yaml --dry-run' option w/run & create
+- generate the YAML for a deployment without creating it
+  - kubectl create deployment web --image nginx -o yaml --dry-run
+- generate the YAML for a Namespace w/o creating it
+  - kubectl create namespace awesome-app -o yaml --dry-run
+- we can cleanup the yaml even more if we want
+  - eg, we can remove the 'creationTimestamp' and empty dicts
+
+- can use '-o yaml --dry-run' with other create commands to get defs
+  - eg clusterrole, job, namespace, role, secret
+
+
+YAML from scratch on K8s
+------------------------
+- tribute to Kelsey Hightower 'K8s The Hard Way'
+- a reminder @ manifests :
+  - each file contains 1 or more manifests
+  - each manifest describes an API object (deployment, service, etc)
+  - each manifest needs 4 parts :
+    apiVersion  # find w/'kubectl api-versions' {root or part of an API Group}
+    kind        # find w/'kubectl api-resources'
+    metadata
+    spec        # find w/'kubectl describe pod'
+
+
+General workflow of YAML from scratch
+-------------------------------------
+- find the resource you want to create (api-resources)
+- find the latest api-version your cluster supports for above 'kind' (use api-versions)
+- give it a name in metadata
+- dive into the spec of that kind
+  - this is where most of the work is
+  - kubectl explain <kind>.spec
+  - kubectl explain <kind> --recursive
+- browse the docs API Reference & use above explain commands
+  - docs have examples
+- use '--dry-run' & '--server-dry-run' for testing
+- kubectl create & delete until you get it right
+
+
+YAML Tips & Validation
+----------------------
+- Advantage of YAML
+- using YAML (instead of kubectl run/create/etc) allows to be declarative
+- the YAML describes the desired state of our cluster and applications
+- YAML can be stored, versioned, archived (eg git)
+- to change resources, change the YAML files
+  - instead of using kubectl edit/scale/label/etc
+- changes can be reviewed before being applied
+  - w/code reviews, pull requests, ...
+- this workflow is sometimes called "GitOps"
+  - there are tools like WeaveFlux or GitKube to facilitate it
+
+YAML in practice
+----------------
+- get started w/kubectl run/create/expose ...
+- dump the YAML with 'kubectl get -o yaml'
+- tweak that YAML and 'kubectl apply -f' it back
+- store that YAML for Reference
+- feel free to clean up the YAML :
+  - remove fields you don't know
+  - check that it still works
+- that YAML will be useful later when using eg Kustomize, Helm
+
+
+YAML Linting & Validation
+-------------------------
+- use generic linters to check proper YAML formatting
+  - yamllint.com
+  - codebeautify.org/yaml-validator
+- for humans w/o kubectl, use a web K8s YAML validator: kubeyaml.com
+- in CI, you might use CLI tools
+  - YAML linter: pip install yamllint
+  - K8s validator: kubeval
+- we'll learn about K8s cluster-specific validation w/kubectl later
