@@ -1,0 +1,178 @@
+title: |
+  Kubernetes Mastery
+
+chat: "[Slack](https://chat.bretfisher.com/)"
+
+gitrepo: github.com/BretFisher/kubernetes-mastery
+
+slides: https://slides.kubernetesmastery.com
+
+exclude:
+- not-mastery
+- self-paced
+# - in-person
+
+chapters:
+- shared/title.md
+#- logistics.md
+# - k8smastery/cleanup-template.md
+# - shared/about-slides.md
+- shared/toc.md
+- 
+  - k8smastery/intro.md
+  - k8smastery/prereqs.md
+  # - k8smastery/quickwin.md
+- 
+  # - shared/webssh.md
+  # - shared/connecting.md
+  # - k8s/versions-k8s.md
+  #- shared/composescale.md
+  #- shared/hastyconclusions.md
+  - k8smastery/orchestration.md
+  # - k8smastery/setup-k8s.md
+  - k8smastery/concepts-k8s.md
+-
+# Local Install Options
+  - k8smastery/install-summary.md
+  - k8smastery/install-docker-desktop.md
+  - k8smastery/install-minikube.md
+  - k8smastery/install-microk8s.md
+  - k8smastery/install-pwk.md
+  - k8smastery/install-shpod.md
+-
+# First Kubectl
+  - k8s/kubectlget.md
+  - k8s/kubectlrun.md
+  - k8s/logs-cli.md
+  - k8smastery/cleanup-pingpong-sleep.md
+# Assignment 1
+  - assignments/01kubectlrun.md
+  - k8s/deploymentslideshow.md
+-
+  - k8smastery/kubectlexpose.md
+  - k8smastery/cleanup-httpenv.md
+  - k8s/kubenet.md
+  # - k8s/buildshiprun-selfhosted.md
+# Assignment 2
+  - assignments/02kubectlexpose.md
+-
+  - shared/sampleapp.md
+  - shared/composedown.md
+  - k8s/shippingimages.md
+  - k8s/buildshiprun-dockerhub.md
+  - k8s/ourapponkube.md
+# Assignment 3
+  - assignments/03deploywordsmith.md
+-
+  #- k8s/kubectlscale.md
+  - k8s/scalingdockercoins.md
+  - shared/hastyconclusions.md
+  - k8s/yamldeploy.md
+  - k8s/dashboard.md
+  - k8s/daemonset.md
+  - k8smastery/cleanup-dockercoins-daemonset.md
+# Assignment 4
+  - assignments/04customlb.md
+-
+  - k8smastery/authoringyaml.md
+  - k8smastery/dryrun.md
+  - k8smastery/cleanup-hello.md
+  - k8smastery/dockercoins-apply.md
+  - k8s/rollout.md
+  - k8s/healthchecks.md
+  - k8s/healthchecks-more.md
+  - k8smastery/cleanup-dockercoins.md
+-
+# ConfigMaps and Secrets
+  - k8s/configuration.md
+  - k8smastery/cleanup-haproxy-registry.md
+-
+# Ingress
+  - k8smastery/ingress.md
+  - k8smastery/cleanup-ingress.md
+-
+# I'M HERE=====================================
+# volumes and persistent data
+  - k8s/volumes.md
+  # k8s/exercise-configmap.md
+  - k8s/statefulsets.md
+  - k8s/local-persistent-volumes.md
+  # - k8s/portworx.md # SKIP FOR NOW
+-
+# Managing YAML with Kustomize and Helm
+  - k8s/kustomize.md
+  - k8s/helm-intro.md
+  - k8s/helm-chart-format.md
+  - k8s/helm-create-basic-chart.md
+  - k8s/helm-create-better-chart.md
+  - k8s/helm-secrets.md
+  #- k8s/exercise-helm.md
+-
+# CRD's and Operators
+  - k8s/extending-api.md
+  # examples of CRD's like ingress.md traefik canary updates
+  - k8s/operators.md
+  - k8s/operators-design.md
+  - k8s/owners-and-dependents.md
+-
+# centralized logging and monitoring
+  - k8s/logs-centralized.md
+  - k8s/prometheus.md
+-
+# resources and metrics
+  - k8s/resource-limits.md
+  - k8s/metrics-server.md
+-
+# cluster sizing and scaling
+  - k8s/cluster-sizing.md
+  - k8s/horizontal-pod-autoscaler.md
+-
+# Declarative Workflows and GitOps
+  - shared/declarative.md
+  - k8s/declarative.md
+  - k8smastery/cli-good-better-best.md
+  - k8s/record.md
+  - k8s/gitworkflows.md
+-
+# Building Images on K8s
+  - k8s/build-with-docker.md
+  - k8s/build-with-kaniko.md
+-
+# deployment tools
+  - k8s/dmuc.md
+  - k8s/multinode.md
+  #- k8s/cni.md MOVED to later on
+  - k8s/apilb.md
+  - k8s/staticpods.md
+
+# TODO:cloud distributions
+-
+# admin internals
+  - k8s/owners-and-dependents.md
+  - k8smastery/taints.md # copied from ingress.md
+  - k8s/cluster-upgrade.md
+  - k8s/cluster-backup.md
+  - k8s/cloud-controller-manager.md
+-
+# remote cluster access
+  - k8s/namespaces.md # namespaces and context
+  - k8s/localkubeconfig.md
+  - k8s/accessinternal.md
+  - k8s/kubectlproxy.md
+-
+# networking and CNI
+  - k8s/cni.md
+  - k8s/interco.md
+-
+# security
+  - k8s/netpol.md
+  - k8s/authn-authz.md
+  - k8s/podsecuritypolicy.md
+  - k8s/csr-api.md
+  - k8s/openid-connect.md
+  - k8s/control-plane-auth.md
+-
+# END
+  - k8s/whatsnext.md
+  - k8s/links.md
+  - shared/thankyou.md

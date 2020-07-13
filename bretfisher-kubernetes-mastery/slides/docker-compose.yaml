@@ -1,0 +1,16 @@
+version: "2"
+
+services:
+  www:
+    image: nginx
+    volumes:
+    - .:/usr/share/nginx/html
+    ports:
+    - "8090:80"
+  builder:
+    build: .
+    volumes:
+    - ..:/repo
+    working_dir: /repo/slides
+    command: ./buildone.sh forever
+

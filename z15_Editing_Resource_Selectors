@@ -1,4 +1,20 @@
 z15_Editing_Resource_Selectors
 ==============================
 
-- 
+Updating Load Balancer configuration
+------------------------------------
+- we would like to remove a pod from the load balancer
+- what would happen if we removed that pod, with kubectl delete pod...?
+  - it would be re-created immediately (by the replica set or the daemon set)
+    - as currently configured
+  - need to modify if in production, testing, etc
+
+- what would happen if we removed the app=rng label from that pod ?
+  - it would also be re-created immedaitely
+
+- why ?
+  - the "mission" of a replica set is :
+    - "Make sure that there is the right number of pods matching the spec"
+  - the "mission" of a daemon set is :
+    - "Make sure that there is a pod matching the spec on each node"
+  
