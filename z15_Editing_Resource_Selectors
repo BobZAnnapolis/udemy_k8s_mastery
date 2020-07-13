@@ -17,4 +17,141 @@ Updating Load Balancer configuration
     - "Make sure that there is the right number of pods matching the spec"
   - the "mission" of a daemon set is :
     - "Make sure that there is a pod matching the spec on each node"
-  
+
+- in fact, replica sets and daemon sets do not check pod specifications
+- they merely have a 'selector', and they look for pods matching that selector
+- yes, we can fool them by manually creating pods with the 'right' labels
+- Bottom Line: if we remove our 'app=rng' label ...
+  - The pod "disappears" for its parent, which re-creates another pod to replace it
+
+Isolation of replica sets and daemon Sets
+-----------------------------------------
+- since both the rng daemon set and rng replica set use "app=rng" ...
+  - why don't they "find" each other's pods ?
+- Replica sets have a more specific 'selector', visible with 'kubectl describe'
+  - it looks like app=rng, pod-template-hash=abcd1234
+- Daemon sets also have a more specific selector, but it's invisible
+  - it looks like app=rng, controll-revision-hash=abcd1234
+- as a result, each controller only "sees" the pods it manages
+
+
+Editing Pod Labels
+------------------
+
+Removing a pod from the load balancer
+-------------------------------------
+- currently the rng service is defined by the app=rng selector
+- the only way to remove a pod is to remove or change the app label
+- ... But that will cause another pod to be created instead !!
+- What's the solution ?
+- We need to change the selector of the rng service
+- let's add another label to that selector
+
+Complex Selector
+----------------
+- if a selector specifies multiple labels, they are understood as a logical AND
+  - in other words: the pods MUST match ALL the LABELs
+- K8s has support for advanced, set-based selectors
+  - but these cannot be used with services, at least not yet
+
+The Plan
+--------
+1. Add the label "enabled=yes" to ALL our rng pods
+2. Update the selector for the rng service to also include enabled=yes
+3. Toggle traffic to a pod by manually adding/removing the enabled flag
+4. Profit !!
+
+Note : If we swap steps 1 & 2, it will cause a short service disruption, because there
+will be a period of time during which the service selector won't match any pod. During that time,
+requests to the service will time out. By doing things in the order above, we guarantee that
+there won't be any disruption.
+
+Adding labels to pods
+---------------------
+- has to be done 1st
+- we want to add the label 'enabled=yes' to all pods that have 'app=rng'
+- we could edit each pod 1 by 1 with kubectl edit ...
+- ... or we could use kubectl label to label them all
+- kubectl label can use selectors, ie -l
+  - kubectl label pods -l app=rng enabled=yes
+- then update the service selector so that it looks for BOTH labels
+
+
+Editing Service SELECTORs
+-------------------------
+- kubectl label pods -l app=rng enabled=yes
+
+
+Updating labels
+---------------
+- we want to disable the pod that was created by the deployment
+- all we have to do, is remove the 'enabled' label from that pod
+- to identify that pod, we can use its name ...
+- ... or rely on the fact that it's the only one with a 'pod-template-hash' label
+- good to know :
+  - kubectl label ... foo= does NOT remove a label, it sets it to an empty string
+  - to remove label foo, use kubectl label ... foo-
+  - to change an existing label, we would need to add --overwrite
+
+
+Removing a pod from a load balancer
+-----------------------------------
+- in 1 window, check the logs of that pod
+  - POD=$(kubectl get pod -l app=rng,pod-template-hash -o name)
+  - kubectl logs --tail 1 --follow $POD
+  - we should see a steady stream of HTTP logs
+- in another window, remove the label from the pod
+  -kubectl label pod -l app=rng,pod-template-hash enabled-
+- the stream of HTTP logs should stop immediately
+
+- there might be a slight change in the web UI (since we removed a bit of capacity from the
+  rng service). If we remove more pods, the effect should be more visible.
+
+
+Updating the daemon set
+-----------------------
+- if we scale up our cluster by adding new nodes, the daemon set will create more pods
+- these pods won't have the enabled=yes label
+- if we want these pods to have that label, we need to edit the daemon set spec
+- we can do that with eg kubectl edit daemonset rng
+
+
+More Label Uses
+---------------
+- Reminder : a daemon set is a resource that creates more resources
+- There is a difference between :
+  - the label(s) of a resource (in the metadata block in the beginning)
+  - the selector of a resource (in the spec block)
+  - the label(s) of the resource(s) created by the 1st resource (in the template block)
+- we would need to update the selector & the template
+  - metadata labels are not mandatory
+- the template must match the selector
+  - ie, the resource will refuse to create resources that it will not select
+
+
+Labels & Debugging
+------------------
+- when a pod is misbehaving, we can delete it: another one will be be recreated
+- but we can also change its LABELs
+- it will be removed from the load balancer - it won't receive traffic anymore
+- another pod will be recreated immediately
+- but the problematic pod is still here, and we can inspect it & debug it
+- we can even re-add it to the rotation if necessary
+  - very useful to troubleshoot intermittent & elusive bugs
+
+
+Labels & advanced rollout control
+---------------------------------
+- conversely, we can add pods matching a service's selector
+- these pods will then receive requests and serve traffic
+- examples
+  - one-shot pod with all debug flags enabled, to collect logs
+  - pods created automatically, but added to rotation in a 2nd step
+    - by setting their label accordingly
+- this gives us building blocks for canary and blue / green deployments
+
+
+cleanup
+-------
+- kubectl delete -f https://k8smastery.com/dockercoins.YAML
+- kubectl delete daemonset/rng
