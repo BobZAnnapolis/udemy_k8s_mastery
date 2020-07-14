@@ -4,4 +4,192 @@ z20_Health_Checks_and_Probe_Types
 
 Health Check Basics
 -------------------
-- 
+- health checks are key to providing built-in lifecycle automation
+- health checks are 'probes' that apply to containers - not to pods
+- K8s will take action on containers that fail healthchecks
+- each container can have 3 {optional} probes :
+  - liveness = is this container dead or alive {most important probe}
+    - is this application working ?
+  - readiness = is this container ready to serve traffic ? (only needed if a service)
+    - "ready for connections from users ?"
+  - startup = is this container still starting up (alpha in v1.16)
+- different probe handlers are available
+  - HTTP
+    - web apis
+  - TCP
+    - generic, is port open
+  - program execution
+    - 'fallback' - runs a script ?
+
+- handled by kubelet agent on each node against the containers on that node
+  - not a FULL monitoring agent
+  - making sure containers are doing what they are supposed to be doing
+
+LIVENESS probe
+--------------
+- every container should have 1 in it
+- indicates if the container is dead or alive
+- a dead container CANNOT come back to life
+- if the liveness probe fails, the container is killed
+  - to make really sure that it's really dead;
+- what happens next depends on the pod's 'restartPolicy'
+  - NEVER : the container is NOT restarted
+  - 'OnFailure' or 'Always' : the container is restarted
+
+When to use a LIVENESS Probe
+----------------------------
+- to indicate failures that CANNOT be recovered
+  - deadlocks - causing all requests to timeout
+  - internal corruption - causing all requests to error
+- anything where our incident response would be "just restart/reboot it"
+- DO NOT USE LIVENESS PROBES FOR PROBLEMS THAT CANNOT BE FIXED BY A RESTART
+- otherwise we just restart our pods for no reason, creating useless load
+
+
+READINESS PROBES
+----------------
+- focused around multi-container services
+- indicates if the container is ready to serve traffic
+- if a container becomes "unready" it might be ready again soon
+  - temporarily overloaded
+- if the readiness probe fails :
+  - the container is NOT killed
+  - if the pod is a member of a service, it is temporarily removed
+  - it is re-added as soon as the readiness probe passes again
+
+When to use a READINESS probe
+-----------------------------
+- to indicate failure due to an external cause
+  - database down or unreachable
+  - mandatory auth or other backend service unavailable
+- to indicate temporary failure or unavailability
+  - application can only serve N parallel connections
+  - runtime is busy doing garbage collection or initial data load
+
+
+STARTUP PROBES
+--------------
+- K8s 1.16 introduces a 3rd type of probe : startupProbe
+  - alpha in K8s v1.16
+- it can be used to indicate "container not ready yet"
+  - process is still starting
+  - loading external data, priming caches
+- before K8s 1.16, we had to use 'initialDelaySeconds' parameter
+  - available for both liveness & readiness probes
+- 'initialDelaySeconds' is a rigid delay - always wait X before running probes
+- 'startupProbe' works better when a container start time can vary a LOT
+
+
+Probe types & examples
+----------------------
+- benefits of using PROBES
+  - rolling updates proceed when containers are actually ready
+    - as opposed to merely started
+  - containers in a broken state get killed and restarted
+    - instead of serving errors or timeouts
+  - unavailable backends get removed from load balancer rotation
+    - thus improving response times across the board
+  - if a probe is not defined, it's as if there was an 'always successful' probe
+
+
+Different types of probe handlers
+---------------------------------
+- HTTP requests
+  - specify URL of the request & optional headers
+  - any status code between 200 - 399 indicates success
+- TCP connection
+  - the probe succeeds if the TCP port is open
+- arbitrary exec
+  - a command is executed in the container
+  - exit status of 0/zero indicates success
+
+
+Timing & Thresholds
+-------------------
+- probes are executed at intervals of 'periodicSeconds' - default : 10
+- the timeout for a probe is set with 'timeoutSeconds' - default : 1
+
+IF A PROBE YAKES LONGER THAN SETTING, IT IS CONSIDERED A FAIL
+
+- a probe is considered successful after 'successThreshold' successes - deafult : 1
+- a probe is considered failing after 'failureThreshold' failures - default : 3
+- a probe can have an 'initialDelaySeconds' parameter - default : 0
+- K8s will wait that amount of time before running the probe for the 1st time
+  - this is important to avoid killing services that take a long time to start
+
+
+Example HTTP Probe
+------------------
+- here is a pod template for the rng web service of the DockerCoins app :
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rng-with-liveness
+spec:
+  containers:
+  - name: rng
+    image: dockercoins/rng:v0.1
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 10
+      periodicSeconds: 1
+- if the backend serves an error, or takes longer than 1s, 3 times in a row, it gets killed
+
+
+Example: exec probe {redis server}
+- here is a pod template for Redis server :
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-with-liveness
+spec:
+  containers:
+  - name: redis
+    image: redis
+    livenessProbe:
+      exec:
+        command: ["redis-cli", "ping"]
+- if the redis process becomes unresponsive, it will be killed
+
+
+Proper Health Check Usage
+-------------------------
+- should probes check container dependencies ?
+  - a HTTP/TCP probe CANNOT check an external dependency
+  - meant to ONLY check current container
+- but a HTTP URL could kick off code to validate a remote dependency
+- if a web server depends on a database to function, and the database is down :
+  - the web server's livenessProbe should succeed
+  - the web server's readiness probe should fail
+- same thing for any hard dependency - without which the container can't work
+
+DO NOT FAIL LIVENESS PROBES FOR PROBLEMS THAT ARE EXTERNAL TO THE CONTAINER
+
+
+HEALTH CHECK FOR WORKERS
+------------------------
+- in that context, worker = process that doesn't accept connections
+
+- READINESS isn't useful
+  - because workers aren't backends for a service
+- LIVENESS may help us restart a broken worker, but how can we check it ?
+- embedding an HTTP server is a {potentially expensive} solution
+- using a "lease" file can be relatively easy :
+  - touch a file during each iteration of the main loop
+  - check the timestamp of that file from an exec probe
+- writing logs - and checking them from the probe - also works
+
+
+STEPS TO CREATE HEALTH CHECKS
+-----------------------------
+- questions to ask before adding healthchecks
+  - do we want liveness, readiness, or both ?
+    - sometimes, we can use the same check, but with different failure thresholds
+  - do we have existing HTTP endpoints that we can use ?
+  - do we need to add new endpoints, or perhaps we use something else ?
+  - are our healthchecks likely to use resources and/or slow down the app ?
+  - do they depend on additional services ?
+    - dbs ?
+  
