@@ -4,4 +4,151 @@ z19_Rollout_History_and_Patching
 
 Rollout history
 ---------------
-- 
+- in this specific scenario
+  - our version numbers are easy to guess
+  - what if we had used git hashes ?
+  - what if we had changed other parameters in the pod spec ?
+
+- often in production / automation - version numbers are useless
+
+Listing versions
+----------------
+- we can list successive versions of a Deployment w/'kubectl rollout history'
+  - kubectl rollout history deployment worker
+  - we don't see all versions !!
+    - might be caused by the # of UNDOs done
+  - eg $ kubectl rollout history deployment worker
+deployment.apps/worker
+REVISION  CHANGE-CAUSE
+3         <none>
+7         <none>
+8         <none>
+9         <none>
+10        <none>
+
+- can get access to other history info - saved in 'metada', eg annotations,labels
+
+
+Explaining deployment revisions
+-------------------------------
+- these revisions correspond to our ReplicaSets
+- this information is stored in the ReplicaSet annotations
+  - kubectl describe replicasets -l app=worker | grep -A3 annotations
+  $ kubectl describe replicasets -l app=worker | grep -A3 Annotations
+Annotations:    deployment.kubernetes.io/desired-replicas: 10
+                deployment.kubernetes.io/max-replicas: 13
+                deployment.kubernetes.io/revision: 9
+                deployment.kubernetes.io/revision-history: 1
+--
+Annotations:    deployment.kubernetes.io/desired-replicas: 10
+                deployment.kubernetes.io/max-replicas: 13
+                deployment.kubernetes.io/revision: 3
+Controlled By:  Deployment/worker
+--
+Annotations:    deployment.kubernetes.io/desired-replicas: 10
+                deployment.kubernetes.io/max-replicas: 13
+                deployment.kubernetes.io/revision: 7
+                deployment.kubernetes.io/revision-history: 5
+--
+Annotations:    deployment.kubernetes.io/desired-replicas: 10
+                deployment.kubernetes.io/max-replicas: 13
+                deployment.kubernetes.io/revision: 8
+                deployment.kubernetes.io/revision-history: 4,6
+--
+Annotations:    deployment.kubernetes.io/desired-replicas: 10
+                deployment.kubernetes.io/max-replicas: 13
+                deployment.kubernetes.io/revision: 10
+                deployment.kubernetes.io/revision-history: 2
+
+
+What about the missing revisions ?
+----------------------------------
+- the missing revisions are stored in another annotation :
+  - deployment.kubernetes.io/revision-history
+- these are not shown in 'kubectl rollout history'
+- we could easily reconstruct the full list with a script
+  - if we wanted to
+    - all is stored in the metadata
+
+
+Rolling back to an older version
+--------------------------------
+- 'kubectl rollout undo'  CAN work with a revision number
+  - 'kubectl rollout undo deployment worker --to-revision=1'
+  - check the web UI, dashboard or the list of pods
+
+
+Creating a YAML Patch
+---------------------
+- changing rollout Parameters
+- what if we wanted to, all at once :
+  - change image to v0.1
+  - be conservative on availability - always have desired number of available workers
+  - go slow on rollout speed - update only 1 pod at a time
+  - give sometime to our workers to "warm up" before starting more
+- these corresponding changes can be expressed in the following YAML snippet :
+
+spec:
+  template:
+    spec:
+      containers:
+      - name: worker
+        image: dockercoins/worker:v0.1
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  minReadySeconds: 10
+
+
+Applying changes thru a YAML patch
+----------------------------------
+- we could use 'kubectl edit deployment worker' & make the changes, or,
+- we could also use 'kubectl patch' with the exact YAML shown above
+
+-
+$ kubectl rollout status deployment worker
+Waiting for deployment "worker" rollout to finish: 8 out of 10 new replicas have been updated...
+Waiting for deployment "worker" rollout to finish: 8 out of 10 new replicas have been updated...
+Waiting for deployment "worker" rollout to finish: 8 out of 10 new replicas have been updated...
+Waiting for deployment "worker" rollout to finish: 8 out of 10 new replicas have been updated...
+Waiting for deployment "worker" rollout to finish: 9 out of 10 new replicas have been updated...
+Waiting for deployment "worker" rollout to finish: 9 out of 10 new replicas have been updated...
+Waiting for deployment "worker" rollout to finish: 9 out of 10 new replicas have been updated...
+Waiting for deployment "worker" rollout to finish: 9 out of 10 new replicas have been updated...
+Waiting for deployment "worker" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "worker" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "worker" rollout to finish: 1 old replicas are pending termination...
+deployment "worker" successfully rolled out
+[192.168.65.3] (kubernetes:default) root@shpod ~
+$ kubectl get deploy -o json | jq ".items[] | {name:.metadata.name} + .spec.strategy.rollingUpdate"
+{
+  "name": "dashboard",
+  "maxSurge": "25%",
+  "maxUnavailable": "25%"
+}
+{
+  "name": "hasher",
+  "maxSurge": "25%",
+  "maxUnavailable": "25%"
+}
+{
+  "name": "redis",
+  "maxSurge": "25%",
+  "maxUnavailable": "25%"
+}
+{
+  "name": "rng",
+  "maxSurge": "25%",
+  "maxUnavailable": "25%"
+}
+{
+  "name": "webui",
+  "maxSurge": "25%",
+  "maxUnavailable": "25%"
+}
+{
+  "name": "worker",
+  "maxSurge": 1,
+  "maxUnavailable": 0
+}
