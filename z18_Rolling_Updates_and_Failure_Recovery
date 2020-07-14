@@ -3,3 +3,180 @@ z18_Rolling_Updates_and_Failure_Recovery
 
 Rolling Updates Basics
 ----------------------
+- by default (w/o rolling updates), when a scaled resource is updated :
+  - new pods are created
+  - old pods are destroyed
+  - ... all at the same time
+  - if something goes wrong, -\_(")_/-
+
+- with rolling updates, when a Deployment is updated, it happens progressively
+- the Deployment controls multiple replica sets
+- each replica set is a group of identical pods
+  - with the same image, arguments, parameters, ...
+- during the rolling update, we have at least 2 ReplicaSets :
+  - the "new" set (corresponding to the 'target' version)
+  - at least 1 "old" set
+- we can have multiple "old" sets
+  - ie if we start another update before the 1st one is done  - NOT RECOMMENDED
+
+
+UPDATE STRATEGY
+===============
+- 2 parameters determine the pace of the rollout :
+  - maxUnavailable &
+  - maxSurge
+- they can be specified in absolute number of pods, or a percentage of the replicas count
+
+- at any given time ...
+  - there will ALWAYS be at least replicas-maxUnavailable pods maxUnavailable
+  - there will NEVER be more than replicas+maxSurge pods in total
+  - there will therefore be up to maxUnavailable+maxSurge pods being updated
+
+- we have the possibility of rolling back to the previous version
+  - ie if the update fails or is unsatisfactory in any way
+
+
+Checking Current Rollout Parameters
+-----------------------------------
+- build a custom report with kubectl & jq
+  - kubectl apply -f https://k8smastery.com/dockercoins.yaml
+  - kubectl get deploy -o json | jq ".items[] | {name:metadata.name} + .spec.strategy.rollingUpdate"
+  $ kubectl get deploy -o json | jq ".items[] | {name:.metadata.name} + .spec.strategy.rollingUpdate"
+  {
+    "name": "hasher",
+    "maxSurge": "25%",
+    "maxUnavailable": "25%"
+  }
+  {
+    "name": "redis",
+    "maxSurge": "25%",
+    "maxUnavailable": "25%"
+  }
+  {
+    "name": "rng",
+    "maxSurge": "25%",
+    "maxUnavailable": "25%"
+  }
+  {
+    "name": "webui",
+    "maxSurge": "25%",
+    "maxUnavailable": "25%"
+  }
+  {
+    "name": "worker",
+    "maxSurge": "25%",
+    "maxUnavailable": "25%"
+  }
+
+- "worker" is the only 1 we have multiple running, ie 10, so all commands following this focus on this
+
+
+Rolling Update WalkThroughs
+---------------------------
+- as of K8s v1.8, we can do rolling updates with :
+  - deployments, daemonsets, statefulsets
+- editing 1 of these resources will automatically result in a rolling update
+- rolling updates can be monitored with the "kubectl rollout" command
+
+- $ kubectl rollout -help
+Error: unknown shorthand flag: 'e' in -elp
+
+
+Examples:
+  # Rollback to the previous deployment
+  kubectl rollout undo deployment/abc
+
+  # Check the rollout status of a daemonset
+  kubectl rollout status daemonset/foo
+
+Available Commands:
+  history     View rollout history
+  pause       Mark the provided resource as paused
+  restart     Restart a resource
+  resume      Resume a paused resource
+  status      Show the status of the rollout
+  undo        Undo a previous rollout
+
+Usage:
+  kubectl rollout SUBCOMMAND [options]
+
+Use "kubectl <command> --help" for more information about a given command.
+Use "kubectl options" for a list of global command-line options (applies to all commands).
+
+- monitor what is going on by opening a few sessions and doing WATCH Commands
+  - kubectl get pods -w
+  - kubectl get replicasets -w
+  - kubectl get deployments -w
+- then update worker with either kubectl edit cmd or by running :
+  - kubectl set image deploy worker=dockercoins/worker:v0.2
+- watch the windows
+
+Give it some time
+-----------------
+- at 1st, it looks like nothing is happening - the graph remains at the same level
+- according to 'kubectl get deploy -w', the deployment was updated really quickly
+- but 'kubectl get pods -w' tells a different story
+- the old pods are still here, and they stay in 'Terminating' state for a while
+- eventually, they are terminated; and then the graph decreases significantly
+- this delay is due to the fact that our / this worker doesn't handle signals too well (for class/demo purposes only)
+- K8s sends a 'polite' shutdown request to the worker, which ignores it
+- after a grace period, K8s gets impatient and kills the container
+  - grace period is 30 seconds, but can be changed if needed
+
+- looking at the webui, can see a dip in performance
+
+- make a mistake "on purpose"
+  - update the worker to a non-existent image
+  - watch ui
+  - kubectl set image deploy worker=dockercoins/worker:v0.3
+  - check what's going on with a :
+    - kubectl rollout status deploy worker
+
+- UI getting worse w/newer updates - why ?
+
+
+Failed Update Details
+---------------------
+- rolling out something invalid
+  - in our example, the rollout is "stuck"
+    - because of the above "rollingUpdate=25%" settings
+    - UI / webui shows a 25% hit in productivity
+- what's going on with our rollout ?
+  - why is our app a bit slower ?
+  - because "maxUnavailable=25%"
+    - ... so the rollout terminated 2 replicas out of 10 available
+  - okay, but why do we see 5 new replicas being rolled out ?
+  - because 'MaxSurge=25%'
+    - ... so in addition to replacing 2 replicas, the rollout is also starting 3 More
+  - it rounded down the number of MaxUnavailable pods conservatively
+    - but the total number of pods being rolled out is allowed to be 25+25=50%
+
+
+The Nitty-Gritty Details
+------------------------
+- we start w/10 pods running for the worker deployment
+- current settings : MaxUnavailable=25%  and MaxSurge=25%
+- when we start the {bad} rollout :
+  - 2 replicas are taken down - as per MaxUnavailable=25%
+  - 2 others are created - with the new version - to replace them
+  - 3 others are created - with the new version - per MaxSurge=25%
+- now we have 8 replicas up & running, and 5 being deployed
+- our rollout is stuck at this point
+
+
+Recovering From Failed updates
+------------------------------
+- checking the dashboard during a bad rollout
+- we could push a valid image
+  - the pod retry logic will eventually catch it and the rollout will proceed
+- or we could invoke a manual rollback
+- cancel the deployment & wait for the dust to settle
+  - kubectl rollout undo deploy worker
+  - kubectl rollout status deploy worker
+
+
+Rolling back to an older version
+--------------------------------
+- "UNDO" can ONLY be used once
+- multiple undos just toggle back & forth between the last 2 versions
+- to get to an older {better} version - do an explicit set image :v#.# cmd or edit the YAML file & APPLY
