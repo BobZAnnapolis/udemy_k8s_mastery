@@ -9,67 +9,189 @@ Running NGINX On our cluster
 - apply the YAML
   - for Docker Desktop
     - kubectl apply -f https://k8smaster.com/ic-nginx-lb.yaml
-    namespace/ingress-nginx created
-    configmap/nginx-configuration created
-    configmap/tcp-services created
-    configmap/udp-services created
-    serviceaccount/nginx-ingress-serviceaccount created
-    clusterrole.rbac.authorization.k8s.io/nginx-ingress-clusterrole created
-    role.rbac.authorization.k8s.io/nginx-ingress-role created
-    rolebinding.rbac.authorization.k8s.io/nginx-ingress-role-nisa-binding created
-    clusterrolebinding.rbac.authorization.k8s.io/nginx-ingress-clusterrole-nisa-binding created
-    deployment.apps/nginx-ingress-controller created
-    limitrange/ingress-nginx created
-    service/ingress-nginx created
-
-  - check the pod status
-    - kubectl describe -n ingress-nginx deploy/nginx-ingress-controller
-    Name:                   nginx-ingress-controller
-    Namespace:              ingress-nginx
-    CreationTimestamp:      Wed, 15 Jul 2020 18:31:10 +0000
-    Labels:                 app.kubernetes.io/name=ingress-nginx
-                            app.kubernetes.io/part-of=ingress-nginx
-    Annotations:            deployment.kubernetes.io/revision: 1
-                            kubectl.kubernetes.io/last-applied-configuration:
-                              {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app.kubernetes.io/name":"ingress-nginx","app.kubernete...
-    Selector:               app.kubernetes.io/name=ingress-nginx,app.kubernetes.io/part-of=ingress-nginx
-    Replicas:               1 desired | 1 updated | 1 total | 0 available | 1 unavailable
-    StrategyType:           RollingUpdate
-    MinReadySeconds:        0
-    RollingUpdateStrategy:  25% max unavailable, 25% max surge
-    Pod Template:
-      Labels:           app.kubernetes.io/name=ingress-nginx
+Name:                   nginx-ingress-controller
+Namespace:              ingress-nginx
+CreationTimestamp:      Wed, 15 Jul 2020 18:31:10 +0000
+Labels:                 app.kubernetes.io/name=ingress-nginx
                         app.kubernetes.io/part-of=ingress-nginx
-      Annotations:      prometheus.io/port: 10254
-                        prometheus.io/scrape: true
-      Service Account:  nginx-ingress-serviceaccount
-      Containers:
-       nginx-ingress-controller:
-        Image:       quay.io/kubernetes-ingress-controller/nginx-ingress-controller:master
-        Ports:       80/TCP, 443/TCP
-        Host Ports:  0/TCP, 0/TCP
-        Args:
-          /nginx-ingress-controller
-          --configmap=$(POD_NAMESPACE)/nginx-configuration
-          --tcp-services-configmap=$(POD_NAMESPACE)/tcp-services
-          --udp-services-configmap=$(POD_NAMESPACE)/udp-services
-          --publish-service=$(POD_NAMESPACE)/ingress-nginx
-          --annotations-prefix=nginx.ingress.kubernetes.io
-        Liveness:   http-get http://:10254/healthz delay=10s timeout=10s period=10s #success=1 #failure=3
-        Readiness:  http-get http://:10254/healthz delay=0s timeout=10s period=10s #success=1 #failure=3
-        Environment:
-          POD_NAME:        (v1:metadata.name)
-          POD_NAMESPACE:   (v1:metadata.namespace)
-        Mounts:           <none>
-      Volumes:            <none>
-    Conditions:
-      Type           Status  Reason
-      ----           ------  ------
-      Available      False   MinimumReplicasUnavailable
-      Progressing    True    ReplicaSetUpdated
-    OldReplicaSets:  <none>
-    NewReplicaSet:   nginx-ingress-controller-948ffd8cc (1/1 replicas created)
-    Events:
-      Type    Reason             Age   From                   Message
-      ----    ------             ----  ----                   -------
-      Normal  ScalingReplicaSet  29s   deployment-controller  Scaled up replica set nginx-ingress-controller-948ffd8cc to 1
+Annotations:            deployment.kubernetes.io/revision: 1
+                        kubectl.kubernetes.io/last-applied-configuration:
+                          {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app.kubernetes.io/name":"ingress-nginx","app.kubernete...
+Selector:               app.kubernetes.io/name=ingress-nginx,app.kubernetes.io/part-of=ingress-nginx
+Replicas:               1 desired | 1 updated | 1 total | 1 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:           app.kubernetes.io/name=ingress-nginx
+                    app.kubernetes.io/part-of=ingress-nginx
+  Annotations:      prometheus.io/port: 10254
+                    prometheus.io/scrape: true
+  Service Account:  nginx-ingress-serviceaccount
+  Containers:
+   nginx-ingress-controller:
+    Image:       quay.io/kubernetes-ingress-controller/nginx-ingress-controller:master
+    Ports:       80/TCP, 443/TCP
+    Host Ports:  0/TCP, 0/TCP
+    Args:
+      /nginx-ingress-controller
+      --configmap=$(POD_NAMESPACE)/nginx-configuration
+      --tcp-services-configmap=$(POD_NAMESPACE)/tcp-services
+      --udp-services-configmap=$(POD_NAMESPACE)/udp-services
+      --publish-service=$(POD_NAMESPACE)/ingress-nginx
+      --annotations-prefix=nginx.ingress.kubernetes.io
+    Liveness:   http-get http://:10254/healthz delay=10s timeout=10s period=10s #success=1 #failure=3
+    Readiness:  http-get http://:10254/healthz delay=0s timeout=10s period=10s #success=1 #failure=3
+    Environment:
+      POD_NAME:        (v1:metadata.name)
+      POD_NAMESPACE:   (v1:metadata.namespace)
+    Mounts:           <none>
+  Volumes:            <none>
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Available      True    MinimumReplicasAvailable
+  Progressing    True    NewReplicaSetAvailable
+OldReplicaSets:  <none>
+NewReplicaSet:   nginx-ingress-controller-948ffd8cc (1/1 replicas created)
+Events:
+  Type    Reason             Age    From                   Message
+  ----    ------             ----   ----                   -------
+  Normal  ScalingReplicaSet  9m48s  deployment-controller  Scaled up replica set nginx-ingress-controller-948ffd8cc to 1
+
+
+Deploying the above NGINX Ingress Controller
+--------------------------------------------
+- we need the YAML templates from the kubernetes/ingress-nginx GitHub project
+- the 2 main sections in the YAML are :
+  - NGINX Deployment (or DaemonSet) and all its required resources
+    - Namespace
+    - ConfigMaps
+      - storing NGINX cfgs
+    - ServiceAccount
+      - authenticate to Kubernetes API
+    - Role/ClusterRole/RoleBindings
+      - authorization to API ports
+    - LimitRange
+      - limit cpu/memory of NGINX
+  - Service to expose NGINX on 80 / 443  {Docker Desktop}
+    - different for each k8s distribution
+
+- kubectl get all -n ingress-nginx
+NAME                                           READY   STATUS    RESTARTS   AGE
+pod/nginx-ingress-controller-948ffd8cc-gzkm5   1/1     Running   0          12m
+
+NAME                    TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+service/ingress-nginx   LoadBalancer   10.104.217.91   localhost     80:30073/TCP,443:30332/TCP   12m
+
+NAME                                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/nginx-ingress-controller   1/1     1            1           12m
+
+NAME                                                 DESIRED   CURRENT   READY   AGE
+replicaset.apps/nginx-ingress-controller-948ffd8cc   1         1         1       12m
+
+- in above, check the service - for Docker Desktop - running on localhost w/ports 80 & 443 mapped to 3####
+
+
+Check that NGINX is running correctly
+-------------------------------------
+- go to browser, check localhost:80
+  - should get "404 Not Found"
+    - EXPECTED - we haven't defined any Ingress rules yet
+  - this means container is running and port is open
+
+
+Ingress DNS & Test Apps
+-----------------------
+
+Setting up DNS
+--------------
+- to make it easy, we will use nip.io
+- check out http://cheddar.A.B.C.D.nip.io
+  - replace A.B.C.D with IP address of your K8s IP
+  - for Docker Desktop - 127.0.0.1
+- we should get the same "404 Page Not Found" error
+  - meaning that our DNS is "set up properly" ... so to speak
+
+Setting up host-based routing ingress rules
+-------------------------------------------
+- we are going to use 'errm/cheese' images
+  - there are 3 tags available, wensleydale, cheddar, stilton
+- 3 different web apps displaying a static image of cheese
+- we will run 3 deployments - 1 for each cheese
+- we will create 3 services - 1 for each deployment
+- then we will create 3 ingress rules - 1 for each service
+- we will route <name-of-cheese>.A.B.C.D.nip.io -> corresponding deployment
+- exercise
+  - run all 3 deployments
+    - kubectl create deployment cheddar --image=errm/cheese:cheddar
+    - kubectl create deployment stilton --image=errm/cheese:stilton
+    - kubectl create deployment wensleydale --image=errm/cheese:wensleydale
+  - create a service for each
+    - kubectl expose deployment cheddar --port=80
+    - kubectl expose deployment stilton --port=80
+    - kubectl expose deployment wensleydale --port=80
+
+
+Creating Ingress Resources
+--------------------------
+- kubectl get pods
+NAME                           READY   STATUS    RESTARTS   AGE
+cheddar-8485568dc8-fx8tk       1/1     Running   0          4m9s
+stilton-848676557d-22c5r       1/1     Running   0          3m45s
+wensleydale-5b6997589d-6j8xt   1/1     Running   0          3m23s
+
+
+What does an ingress resource look like ?
+-------------------------------------------
+- here is a minimal host-based ingress resource
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: cheddar
+spec:
+  rules:
+  - host: cheddar.127.0.0.1.nip.io
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: cheddar
+          servicePort: 80
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: stilton
+spec:
+  rules:
+  - host: stilton.127.0.0.1.nip.io
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: stilton
+          servicePort: 80
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: wensleydale
+spec:
+  rules:
+  - host: wensleydale.127.0.0.1.nip.io
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: wensleydale
+          servicePort: 80
+---
+
+- run 'kubectl apply -f ingress.yaml'
+ingress.networking.k8s.io/cheddar created
+ingress.networking.k8s.io/stilton created
+ingress.networking.k8s.io/wensleydale created
+
+- go to browser : http://cheddar.127.0.0.1.nip.io
+  - replace 'cheddar' with other cheeses - see the other images
