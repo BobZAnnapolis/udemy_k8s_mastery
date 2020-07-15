@@ -1,0 +1,8 @@
+z27_Replacing_NGINX_Ingress_With_Traefik
+========================================
+
+Swapping NGINX With Traefik
+---------------------------
+- Traefik is a proxy with built-in K8s Ingress Support
+- It has a web dashboard, built-in Let's Encrypt, full TCP support and more
+- Most importantly: Traefik releases are named after cheeses

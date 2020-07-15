@@ -3,4 +3,118 @@ z26_Ingress_Traffic_Inspection_and_Annotations
 
 Drawing Ingress Traffic
 -----------------------
-- 
+- our example is dealing w/just 1 node - traffic is simpler
+- see image in folder
+
+
+Ingress Resource Annotations
+----------------------------
+
+Adding features to an Ingress resource
+--------------------------------------
+- 1 way : use 'annotations' in YAML
+- reverse proxies have lots of features
+- let's add a '301 redirect' to a new ingress resource using annotations
+-  it will apply when any other path is used in URL that we didn't already add
+  - kubectl apply -f http:k8smastery.com/redirect.yaml
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: my-google
+  annotations:
+    nginx.ingress.kubernetes.io/permanent-redirect: https://www.google.com
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        backend:
+          serviceName: doesntmatter
+          servicePort: 80
+
+- see 'annotation' above - will immediately redirect to www.google.com
+- kubectl get ingress
+NAME          HOSTS                          ADDRESS     PORTS   AGE
+cheddar       cheddar.127.0.0.1.nip.io       localhost   80      81m
+my-google     *                              localhost   80      6m19s
+stilton       stilton.127.0.0.1.nip.io       localhost   80      81m
+wensleydale   wensleydale.127.0.0.1.nip.io   localhost   80      81m
+
+- '*' - means default URL path
+
+
+Inspecting Ingress Resources
+----------------------------
+- list all Ingress resources in the default namespace
+  - kubectl get ingress
+NAME          HOSTS                          ADDRESS     PORTS   AGE
+cheddar       cheddar.127.0.0.1.nip.io       localhost   80      81m
+my-google     *                              localhost   80      6m19s
+stilton       stilton.127.0.0.1.nip.io       localhost   80      81m
+wensleydale   wensleydale.127.0.0.1.nip.io   localhost   80      81m
+
+- get the details on the 'cheddar' Ingress resource
+  - kubectl describe ingress cheddar
+Name:             cheddar
+Namespace:        default
+Address:          localhost
+Default backend:  default-http-backend:80 (<none>)
+Rules:
+  Host                      Path  Backends
+  ----                      ----  --------
+  cheddar.127.0.0.1.nip.io
+                            /   cheddar:80 (10.1.1.4:80)
+Annotations:
+  kubectl.kubernetes.io/last-applied-configuration:  {"apiVersion":"networking.k8s.io/v1beta1","kind":"Ingress","metadata":{"annotations":{},"name":"cheddar","namespace":"default"},"spec":{"rules":[{"host":"cheddar.127.0.0.1.nip.io","http":{"paths":[{"backend":{"serviceName":"cheddar","servicePort":80},"path":"/"}]}}]}}
+
+Events:  <none>
+
+- get the details on the 'my-google' Ingress resource
+  - kubectl describe ingress my-google
+Name:             my-google
+Namespace:        default
+Address:          localhost
+Default backend:  default-http-backend:80 (<none>)
+Rules:
+  Host  Path  Backends
+  ----  ----  --------
+  *
+        /   doesntmatter:80 (<none>)
+Annotations:
+  kubectl.kubernetes.io/last-applied-configuration:  {"apiVersion":"networking.k8s.io/v1beta1","kind":"Ingress","metadata":{"annotations":{"nginx.ingress.kubernetes.io/permanent-redirect":"https://www.google.com"},"name":"my-google","namespace":"default"},"spec":{"rules":[{"http":{"paths":[{"backend":{"serviceName":"doesntmatter","servicePort":80},"path":"/"}]}}]}}
+
+  nginx.ingress.kubernetes.io/permanent-redirect:  https://www.google.com
+Events:
+  Type    Reason  Age   From                      Message
+  ----    ------  ----  ----                      -------
+  Normal  CREATE  10m   nginx-ingress-controller  Ingress default/my-google
+  Normal  UPDATE  10m   nginx-ingress-controller  Ingress default/my-google
+
+- output 'stilton' YAML
+  - kubectl get ingress/stilton -o yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"networking.k8s.io/v1beta1","kind":"Ingress","metadata":{"annotations":{},"name":"stilton","namespace":"default"},"spec":{"rules":[{"host":"stilton.127.0.0.1.nip.io","http":{"paths":[{"backend":{"serviceName":"stilton","servicePort":80},"path":"/"}]}}]}}
+  creationTimestamp: "2020-07-15T19:08:08Z"
+  generation: 1
+  name: stilton
+  namespace: default
+  resourceVersion: "2081963"
+  selfLink: /apis/extensions/v1beta1/namespaces/default/ingresses/stilton
+  uid: 9649c0af-2cde-4544-bb76-a80773fcfc20
+spec:
+  rules:
+  - host: stilton.127.0.0.1.nip.io
+    http:
+      paths:
+      - backend:
+          serviceName: stilton
+          servicePort: 80
+        path: /
+status:
+  loadBalancer:
+    ingress:
+    - hostname: localhost
