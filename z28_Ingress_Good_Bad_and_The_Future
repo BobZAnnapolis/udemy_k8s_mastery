@@ -1,0 +1,10 @@
+z28_Ingress_Good_Bad_and_The_Future
+-----------------------------------
+
+Ingress Resource Good and Bad
+-----------------------------
+
+Using multiple ingress controllers
+----------------------------------
+- you can have multiple ingress controllers active simultaneously
+  - eg Traefik, Gloo, NGINX

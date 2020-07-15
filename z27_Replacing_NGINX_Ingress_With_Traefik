@@ -6,3 +6,254 @@ Swapping NGINX With Traefik
 - Traefik is a proxy with built-in K8s Ingress Support
 - It has a web dashboard, built-in Let's Encrypt, full TCP support and more
 - Most importantly: Traefik releases are named after cheeses
+
+- the Traefik documentation tells us to pick between Deployment & DaemonSet
+- we are going to use a DaemonSet so that each node can accept connections
+- we provide a YAML file which is essentially the sum of :
+  - Traefik's DaemonSet resources
+    - patched with 'hostNetwork' and tolerations
+    - Traefik's RBAC rules allowing it to watch necessary API objects
+- we wil make a minor change to the YAML provided by Traefik to enable 'hostNetwork' for minikube/MicroK8s
+- for Docker Desktop we'll add a 'type: LoadBalancer' to the service
+
+- for Production - w/Ingress use DaemonSet - have proxy on each node so it can be scaled
+
+Removing NGINX from our cluster
+-------------------------------
+- before starting Traefik, let's remove the NGINX controller
+- this won't remove Services or Ingress resources
+- but it will make them unavailable from outside the cluster
+- delete our NGINX controller and related resources
+  - kubectl delete -f ic-nginx-lb.yaml
+namespace "ingress-nginx" deleted
+configmap "nginx-configuration" deleted
+configmap "tcp-services" deleted
+configmap "udp-services" deleted
+serviceaccount "nginx-ingress-serviceaccount" deleted
+clusterrole.rbac.authorization.k8s.io "nginx-ingress-clusterrole" deleted
+role.rbac.authorization.k8s.io "nginx-ingress-role" deleted
+rolebinding.rbac.authorization.k8s.io "nginx-ingress-role-nisa-binding" deleted
+clusterrolebinding.rbac.authorization.k8s.io "nginx-ingress-clusterrole-nisa-binding" deleted
+deployment.apps "nginx-ingress-controller" deleted
+limitrange "ingress-nginx" deleted
+service "ingress-nginx" deleted
+
+- also remove the redirect Ingress resource. It only worked in NGINX
+  - kubectl delete -f redirect.yaml
+ingress.networking.k8s.io "my-google" deleted
+
+
+Deploying Traefik Ingress Controller
+------------------------------------
+- apply the YAML
+  - kubectl apply -f ic-traefik-lb.yaml
+serviceaccount/traefik-ingress-controller created
+daemonset.apps/traefik-ingress-controller created
+service/traefik-ingress-service created
+clusterrole.rbac.authorization.k8s.io/traefik-ingress-controller created
+clusterrolebinding.rbac.authorization.k8s.io/traefik-ingress-controller created
+
+  - cat ic-traefik-lb.yaml
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: traefik-ingress-controller
+  namespace: kube-system
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: traefik-ingress-controller
+  namespace: kube-system
+  labels:
+    k8s-app: traefik-ingress-lb
+spec:
+  selector:
+    matchLabels:
+      k8s-app: traefik-ingress-lb
+      name: traefik-ingress-lb
+  template:
+    metadata:
+      labels:
+        k8s-app: traefik-ingress-lb
+        name: traefik-ingress-lb
+    spec:
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
+      serviceAccountName: traefik-ingress-controller
+      terminationGracePeriodSeconds: 60
+      containers:
+      - image: traefik:2.1
+        name: traefik-ingress-lb
+        ports:
+        - name: http
+          containerPort: 80
+        - name: admin
+          containerPort: 8080
+        securityContext:
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+        args:
+        - --providers.kubernetesingress=true
+        # you need to manually set this IP to the incoming public IP
+        # that your ingress resources would use. Note it only affects
+        # status and kubectl UI, and doesn't really do anything
+        # It could even be left out https://github.com/containous/traefik/issues/6303
+        - --providers.kubernetesingress.ingressendpoint.hostname=localhost
+        ## the web UI on the host NIC port 8080 in **insecure** mode
+        - --api.dashboard=true
+        - --api.insecure=true
+        - --log=true
+        - --log.level=INFO
+        - --accesslog=true
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: traefik-ingress-service
+  namespace: kube-system
+spec:
+  selector:
+    k8s-app: traefik-ingress-lb
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 80
+      name: web
+    - protocol: TCP
+      port: 8080
+      name: admin
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: traefik-ingress-controller
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - services
+      - endpoints
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - extensions
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: traefik-ingress-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: traefik-ingress-controller
+subjects:
+- kind: ServiceAccount
+  name: traefik-ingress-controller
+  namespace: kube-system
+
+
+- check the pod status
+  - kubectl describe -n kube-system ds/traefik-ingress-controller
+Name:           traefik-ingress-controller
+Selector:       k8s-app=traefik-ingress-lb,name=traefik-ingress-lb
+Node-Selector:  <none>
+Labels:         k8s-app=traefik-ingress-lb
+Annotations:    deprecated.daemonset.template.generation: 1
+                kubectl.kubernetes.io/last-applied-configuration:
+                  {"apiVersion":"apps/v1","kind":"DaemonSet","metadata":{"annotations":{},"labels":{"k8s-app":"traefik-ingress-lb"},"name":"traefik-ingress-...
+Desired Number of Nodes Scheduled: 1
+Current Number of Nodes Scheduled: 1
+Number of Nodes Scheduled with Up-to-date Pods: 1
+Number of Nodes Scheduled with Available Pods: 1
+Number of Nodes Misscheduled: 0
+Pods Status:  1 Running / 0 Waiting / 0 Succeeded / 0 Failed
+Pod Template:
+  Labels:           k8s-app=traefik-ingress-lb
+                    name=traefik-ingress-lb
+  Service Account:  traefik-ingress-controller
+  Containers:
+   traefik-ingress-lb:
+    Image:       traefik:2.1
+    Ports:       80/TCP, 8080/TCP
+    Host Ports:  0/TCP, 0/TCP
+    Args:
+      --providers.kubernetesingress=true
+      --providers.kubernetesingress.ingressendpoint.hostname=localhost
+      --api.dashboard=true
+      --api.insecure=true
+      --log=true
+      --log.level=INFO
+      --accesslog=true
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+Events:
+  Type    Reason            Age   From                  Message
+  ----    ------            ----  ----                  -------
+  Normal  SuccessfulCreate  95s   daemonset-controller  Created pod: traefik-ingress-controller-sbrmg
+
+- kubectl get all -n kube-system
+NAME                                         READY   STATUS    RESTARTS   AGE
+pod/coredns-5644d7b6d9-5jzjd                 1/1     Running   0          14d
+pod/coredns-5644d7b6d9-mf5wm                 1/1     Running   0          14d
+pod/etcd-docker-desktop                      1/1     Running   0          14d
+pod/kube-apiserver-docker-desktop            1/1     Running   0          14d
+pod/kube-controller-manager-docker-desktop   1/1     Running   0          14d
+pod/kube-proxy-6l94j                         1/1     Running   0          14d
+pod/kube-scheduler-docker-desktop            1/1     Running   0          14d
+pod/storage-provisioner                      1/1     Running   0          14d
+pod/traefik-ingress-controller-sbrmg         1/1     Running   0          5m41s
+pod/vpnkit-controller                        1/1     Running   0          14d
+
+NAME                              TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)                       AGE
+service/kube-dns                  ClusterIP      10.96.0.10      <none>        53/UDP,53/TCP,9153/TCP        14d
+service/traefik-ingress-service   LoadBalancer   10.111.183.75   localhost     80:31153/TCP,8080:30320/TCP   5m41s
+
+NAME                                        DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR                 AGE
+daemonset.apps/kube-proxy                   1         1         1       1            1           beta.kubernetes.io/os=linux   14d
+daemonset.apps/traefik-ingress-controller   1         1         1       1            1           <none>                        5m42s
+
+NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/coredns   2/2     2            2           14d
+
+NAME                                 DESIRED   CURRENT   READY   AGE
+replicaset.apps/coredns-5644d7b6d9   2         2         2       14d
+
+
+- if Traefik started correctly, in browser, we can refresh a cheese & it still works
+
+
+Traefik Web UI & CRD
+--------------------
+
+Traefik Web UI
+--------------
+- Traefik provides a web dashboard on container 8080
+- for those using the 'LoadBalancer' method (Docker Desktop), it's enabled
+  - test it out, go to localhost:8080
+- authentication disabled for this demo
+
+
+What about Traefik 2.x IngressRoute resources ?
+-----------------------------------------------
+- we've been using Traefik 2.x as the Ingress controller
+- Traefik released 2.0 in late 2019
+- their documentation talks about IngressRoute resource
+- But IngressRoute is not a built-in resource of K8s
+- Traefik 2.x now supports a custom CRD {Custom Resource Definition}
