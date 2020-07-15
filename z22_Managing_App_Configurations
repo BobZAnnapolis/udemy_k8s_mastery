@@ -3,4 +3,184 @@ z22_Managing_App_Configurations
 
 Managing App Configurations
 ---------------------------
-- 
+- applications need configuration
+- there are many ways for our code to pick up configuration
+  - command line arguments
+  - environment variables
+  - configuration files
+  - configuration servers
+    - getting cfg from a db, an API, ...
+  - ...and more
+- How can we do these things w/containers & K8s ?
+
+
+Passing configuration to containers
+-----------------------------------
+- there are many ways to pass configuration to code running in a container :
+  - baking it into a custom image
+    - lots of limitations
+  - command-line arguments
+  - environment variables
+    - custom apps use a lot (PHP)
+  - injecting configuration files
+    - in the image
+    - or at run-time
+  - exposing it over the K8s API
+    - store cfg in K8s
+  - configuration servers
+    - advanced new solution (outside scope of this course)
+- let's review these different strategies
+- top 4 are the most common
+
+
+APP Config options, explained
+-----------------------------
+- baking custom images
+  - put the configuration in an image
+    - it can be in a configuration file, ...
+    - ... but also 'ENV' or 'CMD' actions
+- it's easy, simple
+- unfortunately, it also has downsides :
+  - multiplication of images
+  - different images for dev, staging, production, ...
+  - minor configuration changes require a whole new build/push/pull cycle
+- AVOID doing it unless you don't have the time to figure out the other options
+
+- command-line arguments
+  - depends on the application(s)
+  - pass the options to an 'args' array in the container specification
+  - Example
+    - args :
+        - "--data-dir=/var/lib/etcd"
+        - "--advertise-client-urls=http://127.0.0.1:2379"
+        - "--listen-client-urls=http://127.0.0.1.2379"
+        - "--listen-peer-urls=http://127.0.0.1.2380"
+        - "--name=etcd"
+  - the options can be passed directly to the program that we run ...
+    - ... or to a wrapper script that will use them to ... eg, generate a cfg file
+  - RULES :
+    - if your application supports these, might be a good option
+    - works great when options are passed directly to the running program
+      - otherwise, a wrapper script can work around the issue
+    - works great when there aren't too many parameters
+      - ie avoid 20 line args defs
+    - requires documentation and/or understanding of the underlying program
+      - ie, which parameters & flags do i need
+    - well-suited for mandatory parameters, ie without default values
+    - not ideal when we should / need to pass a real configuration file anyway
+
+- environment variables
+  - probably most common - if the app supports this
+  - pass options thru the 'ENV' map in the container specification, usually key / value pairs
+  - Example
+    - env:
+      - name: ADMIN_PORT
+        value: "8080"
+      - name: ADMIN_AUTH
+        value: Basic
+      - name: ADMIN_CRED
+        value: "admin:0pensesame!"
+  - NOTE: Value MUST be a string ! Make sure that numbers and fancy strings are quoted
+
+
+K8S Downward API
+----------------
+- allows a container to see info about itself
+- in the previous example, environment variables have fixed values
+- we can also use a mechanism called the 'downward api'
+- the 'downward api' allows exposing pod or container information :
+  - either thru special files ...  {in a mounted volume - little more complicated/advanced}
+  - ... or thru environment variables
+- the value of the environment variables is computed when the container is started
+- REMEMBER : environment variables WON'T / CAN'T change after container start
+- examples :
+  - exposing the pod's namespace
+    - name: MY_POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - useful to generate FQDN of services
+      - in some contexts, a short name is not enough
+    - for instance, the 2 commands should be equivalent :
+      - curl api-backend
+      - curl api-backend.$MY_POD_NAMESPACE.svc.cluster.local
+  - exposing the pod's IP address
+    - name: MY_POD_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.podIP
+    - useful if we need to know our IP address
+      - could also read it from 'eth0', but this way is more solid
+  - exposing the container's resource limits
+    - name: MY_MEM_LIMIT
+      valueFrom:
+        resourceFieldRef:
+          containerName: test-container
+          resource: limits.memory
+    - useful for runtimes where memory is garbage collected
+    - example
+      - the JVM
+        - the memory available to the JVM should be set with the -Xmx flag
+    - BEST PRACTICE : set a memory limit, and pass it to the runtime
+    - NOTE: recent versions of the JVM can do this automatically
+      - check JDK-8146115 & web for examples/details
+  - check online DOWNWARD API documentation
+
+
+  ENV VARS & CONFIG MAPS
+  ------------------------
+  - works great when the running program expects these variables
+  - works great for optional parameters w/reasonable defaults
+    - since the container image can provide these defaults
+  - sort of auto-documented
+    - we can see which environment variables are defined in the image, and their values
+  - can be {ab}used with longer values ...
+    - ie you can put an entire Tomcat configuration file in an environment ...
+      - ...But should You ?
+      - Do it if you really need to, we're not judging !  But we'll see / there are better ways
+
+- CONFIG MAPS
+  - injecting configuration files with ConfigMaps
+    - sometimes, there is no way around it : we need to inject a full config file
+    - K8s provides a mechanism for that purpose : ConfigMaps
+    - a ConfigMap is a K8s resource that exists in a namespace
+    - conceptually, it's a key-value map
+      - values are arbitrary strings
+    - we can think about them in (at least) 2 different ways :
+      - as holding entire config files(s)
+      - as holding individual configuration parameters
+  - NOTE : to hold sensitive information, we can use "Secrets", which are another
+          resource behaving very much like ConfigMaps. {see later}
+
+
+ConfigMaps storing entire files
+-------------------------------
+- in this case, each key/value pair corresponds to a configuration file
+- Key = name of the file
+- Value = content of the file
+- There can be one key/value pair, or as many as necessary
+  - for complex apps with multiple configuration files
+- example
+  - # Create a ConfigMap with a single key, "app.conf"
+    - kubectl create configmap my-app-config --from-file=app.conf
+  - # Create a ConfigMap with a single key, "app.conf" but another file
+  - kubectl create configmap my-app-config --from-file=app.conf=app-prod.conf
+  - # Create a ConfigMap with a multiple keys - 1 per file in a config.d folder
+  - kubectl create configmap my-app-config --from-file=config.d
+
+
+ConfigMaps storing individual parameters
+----------------------------------------
+- in this case, each key/value pair corresponds to a parameter
+- Key = name of parameter
+- Value = value of parameter
+- examples
+  - # Create a ConfigMap with 2 keys
+    - kubectl create cm my-app-config \
+      --from-literal=foreground=red \
+      --from-literal=background=blue
+
+    - # Create a ConfigMap from a file containing key=value pairs
+      - kubectl create cm my-app-config \
+        --from-env-file=app.conf
+        
