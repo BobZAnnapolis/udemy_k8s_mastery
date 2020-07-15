@@ -3,4 +3,150 @@ z24_Kubernetes_Ingress_Using_Proxies
 
 Why Do We Need Ingress
 ----------------------
-- 
+
+Exposing HTTP Services with Ingress Resources
+---------------------------------------------
+- Services give us a way to access a pod or a set of pods
+- Services can be exposed to the outside world :
+  - with type NodePort - on a  port >30000
+  - with type LoadBalancer - allocating an external load balancer
+
+- What about HTTP services ?
+  - how can we expose 'webui', 'rng', 'hasher' ?
+  - the K8s dashboard ?
+  - all on the same IP & port ?
+
+
+Exposing HTTP Services
+----------------------
+- if we use NodePort services, clients have to specify port numbers
+  - ie http://xxxx:31234 instead of just http://xxxxx
+- LoadBalancer services are nice, but :
+  - they are not available in all environments
+  - they often carry an additional cost - eg they provision an ELB
+  - they often work at OSI Layer 4 (IP+PORT) and not Layer 7 (HTTP/S)
+  - they require one extra step for DNS integration
+    - waiting for the LoadBalancer to be provisioned, then adding it to DNS
+- we could build our own reverse proxy
+
+
+Build A Custom Reverse Proxy
+----------------------------
+- there are many options available
+  - Apache, HAProxy, Envoy, Proxy, Gloo, NGINX, Traefik, ...
+- Most of these options require us to update/edit configuration files after each change
+- Some of them can pick up virtual hosts & backends from a configuration store
+- Enter "Ingress" resources
+
+
+ingress vs Ingress
+------------------
+- ingress
+  - ingress definition : Going in, entering. The opposite of egress (leaving)
+  - in network terms, ingress refers to handling incoming connections
+  - could imply incoming to firewall, network, or in this case, a server cluster
+- Ingress
+  - Ingress {capital 'I'} means the K8s Ingress resource
+    - built-in K8s resource
+  - Specific to just HTTP/S traffic {web traffic}
+
+
+What Makes Up TheK8s Ingress Resource
+-------------------------------------
+
+Ingress Resources
+-----------------
+- K8s API resource (kubectl get ingress/ingresses/ing)
+- designed to expose HTTP services
+  - basic functionality :
+    - load balancing
+    - SSL termination
+    - name-based virtual hosting
+      - use YAML file to supply web app endpoints
+- can also route to different services depending on :
+  - URI path - eg api->api-service, /static->assets->service
+  - client headers, including cookies (for A/B testing, canary deployment, ...)
+  - ... more
+
+Principle of Operation
+----------------------
+- Step 1 : deploy an Ingress controller
+  - Ingress controller = load balancing proxy + control loop
+  - the control loop watches over Ingress resources, and configures the LB accordingly
+  - these might be two separate processes (NGINX server + NGINX Ingress controller)
+  - or a single app that knows how to speak to K8s Traefik
+- Step 2 : set up DNS (usually)
+  - associate external DNS entries with the load balancer or host address
+- Step 3 : create Ingress resources for our Service resources
+  - 1 per each Service sitting in front of our apps
+  - these resources contain rules for handling HTTP/S connections
+  - the Ingress controller picks up these resources and configures the LB
+  - connections to the ingress LB will be processed by the rules
+
+
+Planning For Ingress Controller
+-------------------------------
+
+Ingress in action : NGINX
+-------------------------
+- we will deploy the NGINX Ingress controller first
+  - this is a popular, yet arbitrary choice, the docs list a dozen+ options
+  - K8s default 1 to use is NGINX
+- for DNS, we will use nip.io
+  - DNS-wildcard solutions
+  - will set up 3 different apps at 3 different addresses
+  - *.127.0.0.1.nip.io resolves to 127.0.0.1  {localhost {{for  this course}}}
+  - we do this so we can use various FQDNs without editing our hosts file
+  - DNS-based routing
+- we will create Ingress resources for various HTTP-based Services
+
+Deploying pods listening on Port 80
+-----------------------------------
+- we want our Ingress load balancer to be available on port 80
+- we could do that with a LoadBalancer service
+  - but it requires support from the underlying infrastructure
+  - this is built-in to Docker Desktop  {localhost}
+- minikube & microK8s don't work with it
+- we could use pods specifying hostPort: 80
+  -works best when on a single machine
+  - but most CNI plugins, this doesn't work or requires additional setup
+- we could use a NodePort service
+  - but that requires changing --service-node-port-range flag in API server
+  - ugh - need port 80 to be reserved for us
+- Last resort : use hostNetwork mode
+
+
+Ingress Controller Port Config
+------------------------------
+
+Without hostNetwork:false
+-------------------------
+- normally, each pod gets its own network namespace
+  - sometimes called sandbox or network sandbox
+- an IP address is assigned to the pod
+- this IP address is routed / connected to the cluster network
+- all containers of that pod are sharing that network namespace
+  - and therefore using the same IP address
+
+With hostNetwork:true
+---------------------
+- no network namespace gets created
+  - using the host
+- the pod is using the network namespace of the host
+- it sees (and can use) the interfaces (& IP addresses) of the host (VM on macOS/Win)
+- the pod can receive outside traffic directly, on any port
+- downside : with most network plugins, network policies won't work for that pod
+  - most network policies work at the IP address level
+  - filtering that pod = filtering traffic from the node
+
+What you will use now
+---------------------
+- Docker Desktop
+  - no built-in Ingress installer, we'll provide YAML
+  - ignores 'hostNetwork', but Service 'type: LoadBalancer' works with 'localhost'
+- minikube
+  - has a built-in NGINX installer 'minikube addons enable ingress'
+  - 'hostNetwork: true' enabled on pod works w/minikube IP
+- microK8s
+  - has a built-in NGINX installer
+  - 'hostNetwork: true' enabled on pod works w/microK8s IP

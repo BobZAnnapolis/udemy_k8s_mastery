@@ -1,0 +1,75 @@
+z25_Deploying_NGINX_and_Ingress_Resources
+=========================================
+
+Deploying NGINX Ingress
+-----------------------
+
+Running NGINX On our cluster
+----------------------------
+- apply the YAML
+  - for Docker Desktop
+    - kubectl apply -f https://k8smaster.com/ic-nginx-lb.yaml
+    namespace/ingress-nginx created
+    configmap/nginx-configuration created
+    configmap/tcp-services created
+    configmap/udp-services created
+    serviceaccount/nginx-ingress-serviceaccount created
+    clusterrole.rbac.authorization.k8s.io/nginx-ingress-clusterrole created
+    role.rbac.authorization.k8s.io/nginx-ingress-role created
+    rolebinding.rbac.authorization.k8s.io/nginx-ingress-role-nisa-binding created
+    clusterrolebinding.rbac.authorization.k8s.io/nginx-ingress-clusterrole-nisa-binding created
+    deployment.apps/nginx-ingress-controller created
+    limitrange/ingress-nginx created
+    service/ingress-nginx created
+
+  - check the pod status
+    - kubectl describe -n ingress-nginx deploy/nginx-ingress-controller
+    Name:                   nginx-ingress-controller
+    Namespace:              ingress-nginx
+    CreationTimestamp:      Wed, 15 Jul 2020 18:31:10 +0000
+    Labels:                 app.kubernetes.io/name=ingress-nginx
+                            app.kubernetes.io/part-of=ingress-nginx
+    Annotations:            deployment.kubernetes.io/revision: 1
+                            kubectl.kubernetes.io/last-applied-configuration:
+                              {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app.kubernetes.io/name":"ingress-nginx","app.kubernete...
+    Selector:               app.kubernetes.io/name=ingress-nginx,app.kubernetes.io/part-of=ingress-nginx
+    Replicas:               1 desired | 1 updated | 1 total | 0 available | 1 unavailable
+    StrategyType:           RollingUpdate
+    MinReadySeconds:        0
+    RollingUpdateStrategy:  25% max unavailable, 25% max surge
+    Pod Template:
+      Labels:           app.kubernetes.io/name=ingress-nginx
+                        app.kubernetes.io/part-of=ingress-nginx
+      Annotations:      prometheus.io/port: 10254
+                        prometheus.io/scrape: true
+      Service Account:  nginx-ingress-serviceaccount
+      Containers:
+       nginx-ingress-controller:
+        Image:       quay.io/kubernetes-ingress-controller/nginx-ingress-controller:master
+        Ports:       80/TCP, 443/TCP
+        Host Ports:  0/TCP, 0/TCP
+        Args:
+          /nginx-ingress-controller
+          --configmap=$(POD_NAMESPACE)/nginx-configuration
+          --tcp-services-configmap=$(POD_NAMESPACE)/tcp-services
+          --udp-services-configmap=$(POD_NAMESPACE)/udp-services
+          --publish-service=$(POD_NAMESPACE)/ingress-nginx
+          --annotations-prefix=nginx.ingress.kubernetes.io
+        Liveness:   http-get http://:10254/healthz delay=10s timeout=10s period=10s #success=1 #failure=3
+        Readiness:  http-get http://:10254/healthz delay=0s timeout=10s period=10s #success=1 #failure=3
+        Environment:
+          POD_NAME:        (v1:metadata.name)
+          POD_NAMESPACE:   (v1:metadata.namespace)
+        Mounts:           <none>
+      Volumes:            <none>
+    Conditions:
+      Type           Status  Reason
+      ----           ------  ------
+      Available      False   MinimumReplicasUnavailable
+      Progressing    True    ReplicaSetUpdated
+    OldReplicaSets:  <none>
+    NewReplicaSet:   nginx-ingress-controller-948ffd8cc (1/1 replicas created)
+    Events:
+      Type    Reason             Age   From                   Message
+      ----    ------             ----  ----                   -------
+      Normal  ScalingReplicaSet  29s   deployment-controller  Scaled up replica set nginx-ingress-controller-948ffd8cc to 1
