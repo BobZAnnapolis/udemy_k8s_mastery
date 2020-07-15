@@ -17,3 +17,7 @@ USES SHPOD
 - kubectl attach --namespace=shpod -ti shpod
 - after finishing the course :
   - kubectl delete -f https://k8smastery.com/shpod.yaml
+
+aliases to use
+--------------
+alias lsa='clear;ls -al --color=auto;pwd' && alias cd..='cd ..;lsa' && alias rmfr='rm -fr'
