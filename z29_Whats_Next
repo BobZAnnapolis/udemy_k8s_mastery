@@ -1,0 +1,45 @@
+z29_Whats_Next
+==============
+
+Lectures Coming Up in Kubernetes Mastery
+You've hit the last lecture! 😢
+
+Sad BretDon't be sad, much more is coming soon!
+
+Hey Kubernetes fans, you might think "awww man Bret didn't cover topic X", but have no fear,
+we're launching new Sections and topics every month for 2020. This course launched on Black
+Friday 2019 and we're working non-stop to add videos in the below sections, so come back often
+to check course announcements on new sections. You can already see the topics in the slides
+that we're actively recording such as:
+
+Persistent storage and volumes
+
+Custom resources (CRD's)
+
+Operators
+
+Helm, including the new 3.0 changes
+
+Kustomize templating
+
+Recording deployment actions (and pros and cons)
+
+Central logging with ELK
+
+Prometheus monitoring
+
+Static pods
+
+Kube proxy and remote CLI mgmt with context
+
+Network policies, pod security policies
+
+And then there's more content coming that isn't yet at the end of the slides
+
+Cloud clusters
+
+Deployment options
+
+Autoscaling
+
+Resource limits and sizing

@@ -8,3 +8,78 @@ Using multiple ingress controllers
 ----------------------------------
 - you can have multiple ingress controllers active simultaneously
   - eg Traefik, Gloo, NGINX
+- you can even have multiple instances of the same controller
+  - eg, one for internal, another for external
+- the 'kubernetes.io/ingress.class' annotation can be used to tell which one to use
+- it's ok if multiple ingress controllers configure the same resource
+  - it just means that the service will be accessible thru multiple paths
+
+
+Ingress resources : the good
+----------------------------
+- the traffic flows directly from the ingress load balancer to the backends
+  - it doesn't go thru the ClusterIP
+  - in fact, we don't even need a ClusterIP - we can use a headless service
+- the load balancer can be used outside of K8s
+  - as long as it has access to the cluster subnet
+- this allows the use of external (hardware, physical machines ...) load balancers
+- annotations can encode special features
+  - rate-limiting, A/B testing, session stickiness, ...
+
+
+Ingress Resources : the Bad
+---------------------------
+- aforementioned "special features" / annotations are not standardized yet
+- some controllers will support them, some won't
+- even relatively common features (stripping a path prefix) can differ :
+  - traefik.ingress.kubernetes/rule-type: PathPrefixStrip
+  - ingress.kubernetes.io/rewrite-target: /
+- this should eventually stabilize, but isn't yet
+  - remember that ingresses are currently 'apiVersion: networking.k8s.io/v1beta1'
+- ANNOTATIONS ARE NOT CURRENTLY VALIDATED IN CLI
+  - 'kubectl apply' - validates spec & yaml -> annotations not validated yet
+- some proxies provide a CRD (Custom Resource Definition) option
+
+
+Alternatives & The Future of Ingress
+------------------------------------
+
+When not to use built-in Ingress Resources
+------------------------------------------
+- you need features beyond Ingress including :
+  - TCP support, traffic splitting, mTLS, egress, service mesh
+  - response transformation, routing to 2+ services
+- you have external load balancers (like AWS ELB) which routes to NodePorts
+- you don't need externally available HTTP services on the default ports
+
+
+Using CRD's as alternatives to Ingress Resources
+------------------------------------------------
+- due to the limits of the built-in ingress, many projects are moving to CRD's
+- for example, Traefik 2.x has an IngressRoute CRD option
+- Ambassador, a controller for Envoy proxy, uses a 'Mapping' CRD
+- These CRD proxy options do ingress plus more - sometimes called API Gateways
+  - TCP Support - anything beyond HTTP / S
+  - Traffic Splitting, rate limiting, circuit breaking, ...
+  - Complex traffic routing, request and response transformation
+- once we consider CRD's, many more proxy options are available :
+  - Envoy Proxy based - Gloo, Ambassador, Contour
+  - Other - Tyk, Traefik, Kong, KrakenD
+
+- check links on K*s website for proxy options
+- CNCF Landscape website - interactive - pick proxies
+
+- eventually, some more advanced features might be added to "Ingress Resource", ie v2.x+
+
+- keep up on KubeCon SIGs, etc
+
+
+Ingress Cleanup
+---------------
+- remove our ingress controller
+  - kubectl delete -f ic-traefik-lb.yaml
+- remove our ingress resources
+  - kubectl delete -f ingress.yaml
+- remove our cheeses
+  - kubectl delete svc/cheddar svc/stilton svc/wensleydale
+  - kubectl delete deploy/cheddar deploy/stilton deploy/wensleydale
